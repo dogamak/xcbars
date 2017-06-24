@@ -1,10 +1,11 @@
+#[macro_export]
 macro_rules! composite {
     ( $( $arg:expr ),+ ) => {
         {
             use $crate::components::Text;
             use $crate::component::{Component, ComponentCreator};
-            use $crate::error::{Error, Result};
-            use futures::{Poll, Async};
+            use $crate::Error;
+            use ::futures::{Poll, Async};
 
             struct SubComponent(Box<ComponentCreator>);
 
@@ -33,7 +34,7 @@ macro_rules! composite {
                 type Error = Error;
                 type Stream = CompositeComponentStream;
 
-                fn init(&mut self) -> Result<()> {
+                fn init(&mut self) -> Result<(), Error> {
                     for component in self.components.iter_mut() {
                         component.0.init()?;
                     }
