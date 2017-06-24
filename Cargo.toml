@@ -1,0 +1,18 @@
+[package]
+name = "xcbars"
+version = "0.1.0"
+authors = ["Mitja Karhusaari <monttu300@gmail.com>"]
+
+[dependencies]
+cairo-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["xcb", "png"] }
+cairo-sys-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["xcb"] }
+error-chain = "*"
+futures = "*"
+pango = { git = "https://github.com/gtk-rs/pango.git" }
+pangocairo = { git = "https://github.com/razrfalcon/pangocairo-rs.git" }
+procinfo = { git = "https://github.com/dogamak/procinfo-rs.git" }
+tokio-core = "*"
+tokio-io = "*"
+tokio-process = "*"
+tokio-timer = "*"
+xcb = { git = "https://github.com/rtbo/rust-xcb.git", features = ["render"] }
