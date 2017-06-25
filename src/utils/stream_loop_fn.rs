@@ -2,7 +2,7 @@ use futures::{Stream, Future, IntoFuture, Poll, Async};
 
 pub struct LoopFn<C,F> {
     creator: C,
-    current: F,
+    current: Option<F>,
 }
 
 impl<C,F> LoopFn<C,F> {
@@ -12,8 +12,8 @@ impl<C,F> LoopFn<C,F> {
               F: Future,
     {
         LoopFn {
-            current: creator().into_future(),
             creator,
+            current: None,
         }
     }
 }
@@ -27,9 +27,20 @@ impl<C,F,I> Stream for LoopFn<C,F>
     type Error = F::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.current.poll() {
+        if self.current.is_none() {
+            self.current = Some((self.creator)().into_future());
+        }
+
+        let current;
+        if let Some(ref mut future) = self.current {
+            current = future.poll();
+        } else {
+            unreachable!();
+        }
+
+        match current {
             Ok(Async::Ready(t)) => {
-                self.current = (self.creator)().into_future();
+                self.current = Some((self.creator)().into_future());
                 Ok(Async::Ready(Some(t)))
             },
             Ok(Async::NotReady) => Ok(Async::NotReady),
