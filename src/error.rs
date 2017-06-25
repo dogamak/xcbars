@@ -1,6 +1,7 @@
 error_chain! {
     foreign_links {
         Io(::std::io::Error);
+        Timer(::tokio_timer::TimerError);
     }
 
     errors {
