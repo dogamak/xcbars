@@ -37,7 +37,7 @@ impl Bar {
     
     pub fn run(mut self) -> Box<Future<Item=(), Error=()>> {
         let future = self.get_stream()
-            .map_err(|_| ErrorKind::ItemError.into())
+            .map_err(|e| ::error::Error::with_chain(e, ErrorKind::ItemError))
             .for_each(move |item| -> Result<()> {
                 let (_, update) = match item {
                     MergedItem::First(update) => (None, Some(update)),
