@@ -61,10 +61,6 @@ impl Bar {
                         size_changed = self.item_positions[update.id].1 != width;
                     }
 
-                    if size_changed {
-                        self.paint_bg(update.id)?;
-                    }
-
                     self.item_positions[update.id].1 = width;
 
                     match update.slot {
@@ -118,13 +114,22 @@ impl Bar {
         let mut pos: i16 = before.iter()
             .map(|item| item.get_content_width() as i16).sum();
 
+
+        let mut first_iter = true;
         for item in after.iter() {
-            if side {
+            if side || !first_iter {
                 pos += item.get_content_width() as i16;
             }
-            side = true;
-            self.item_positions[item.get_id()].0 = pos;
-            self.draw_item(item, start+(pos*direction))?;
+
+            if size_changed || !first_iter {
+                self.paint_bg(item.get_id())?;
+            }
+            
+            let x = start+(pos*direction);
+            self.item_positions[item.get_id()].0 = x;
+            self.draw_item(item, x)?;
+
+            first_iter = false;
         }
 
         self.conn.flush();
