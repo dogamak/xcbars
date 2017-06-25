@@ -99,29 +99,29 @@ impl Bar {
         Ok(())
     }
 
-    fn redraw_end(&mut self, mut side: bool, size_changed: bool, index: usize) -> Result<()> {
+    fn redraw_end(&mut self, side: bool, size_changed: bool, index: usize) -> Result<()> {
         let (start, direction, items) = match side {
             false => (0, 1, &self.left_items),
             true => (self.geometry.width() as i16, -1, &self.right_items),
         };
 
-        let (before, mut after) = items.split_at(index);
+        let mut pos = 0i16;
 
-        if !size_changed {
-            after = &after[0..1];
-        }
+        for i in 0..items.len() {
+            let item = match side {
+                false => &items[i],
+                true => &items[items.len()-i-1],
+            };
 
-        let mut pos: i16 = before.iter()
-            .map(|item| item.get_content_width() as i16).sum();
-
-
-        let mut first_iter = true;
-        for item in after.iter() {
-            if side || !first_iter {
+            if size_changed && i > index {
+                break;
+            }
+            
+            if side || i > index {
                 pos += item.get_content_width() as i16;
             }
 
-            if size_changed || !first_iter {
+            if size_changed || i > index {
                 self.paint_bg(item.get_id())?;
             }
             
@@ -129,7 +129,10 @@ impl Bar {
             self.item_positions[item.get_id()].0 = x;
             self.draw_item(item, x)?;
 
-            first_iter = false;
+            if i < index {
+                pos += item.get_content_width() as i16;
+                continue;
+            }
         }
 
         self.conn.flush();
