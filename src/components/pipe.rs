@@ -15,6 +15,7 @@ use error::Error;
 
 pub struct Pipe {
     pub command: String,
+    pub args: Vec<String>,
     pub refresh_rate: Option<Duration>,
 }
 
@@ -23,6 +24,7 @@ impl Pipe {
               -> BufReader<ChildStdout>
     {
         let mut cmd = Command::new(self.command.as_str());
+        cmd.args(self.args.as_slice());
         cmd.stdin(Stdio::inherit())
             .stdout(Stdio::piped());
         let mut child = cmd.spawn_async(&handle).unwrap();
