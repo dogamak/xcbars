@@ -19,6 +19,16 @@ pub struct Pipe {
     pub refresh_rate: Option<Duration>,
 }
 
+impl Default for Pipe {
+    fn default() -> Pipe {
+        Pipe {
+            command: "true".to_string(),
+            args: vec![],
+            refresh_rate: None,
+        }
+    }
+}
+
 impl Pipe {
     fn reader(&self, handle: &Handle)
               -> BufReader<ChildStdout>
