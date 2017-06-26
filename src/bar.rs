@@ -18,6 +18,7 @@ use component::Slot;
 
 type UpdateAndEventStream = Merge<UpdateStream, XcbEventStream>;
 
+/// Struct that contains everything needed to run the bar.
 pub struct Bar {
     pub center_items: Vec<ItemState>,
     pub conn: Rc<Connection>,
@@ -31,10 +32,13 @@ pub struct Bar {
 }
 
 impl Bar {
+    /// Returns `self.stream` without borrowing or consuming `self`.
+    /// Panics if called twice.
     fn get_stream(&mut self) -> UpdateAndEventStream {
         ::std::mem::replace(&mut self.stream, None).unwrap()
     }
-    
+
+    /// Launch and run the bar.
     pub fn run(mut self) -> Box<Future<Item=(), Error=()>> {
         let future = self.get_stream()
             .map_err(|e| ::error::Error::with_chain(e, ErrorKind::ItemError))
@@ -47,8 +51,10 @@ impl Bar {
 
                 if let Some(update) = update {
                     let size_changed;
-                    let width;
 
+                    // Figure out if the component has chanaged
+                    // it's size since the last update.
+                    // TODO: Move to a function
                     {
                         let slot_items = match update.slot {
                             Slot::Left => &mut self.left_items,
@@ -57,10 +63,11 @@ impl Bar {
                         };
                         slot_items[update.index].update(update.value)?;
 
-                        width = slot_items[update.index].get_content_width();
+                        let width = slot_items[update.index].get_content_width();
                         size_changed = self.item_positions[update.id].1 != width;
                     }
 
+                    // Redraw only neccessary stuff
                     match update.slot {
                         Slot::Center => self.redraw_center()?,
                         Slot::Left => self.redraw_left(size_changed, update.index)?,
@@ -81,6 +88,9 @@ impl Bar {
         Box::new(future)
     }
 
+    /// Redraws components in the center slot.
+    /// Unforunately centering means that all components
+    /// must be redrawn if even one of them changes size.
     fn redraw_center(&mut self) -> Result<()> {
         let width_all: u16 = self.center_items.iter()
             .map(|item| item.get_content_width())
@@ -98,6 +108,8 @@ impl Bar {
         Ok(())
     }
 
+    /// Pretty much the same as `self.redraw_left` but with `left` replaced with `right`.
+    /// The order in which the items are gone through is reversed.
     fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let mut pos = self.geometry.width();
 
@@ -136,6 +148,16 @@ impl Bar {
         Ok(())
     }
 
+    /// Redraw only needed items in the right slot.
+    /// Symmetric to `self.redraw_left`.
+    ///
+    /// If the component hasn't changed it's size, it doesn't affect
+    /// any other components and we can get away with just painting
+    /// the one component.
+    ///
+    /// However if the component has changed it's size, we must also
+    /// redraw every component on the right of it. If the item has shrunk
+    /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let mut pos = 0;
 
@@ -173,6 +195,7 @@ impl Bar {
         Ok(())
     }
 
+    /// Copies the item's pixmap to the window.
     fn draw_item(&self, item: &ItemState, pos: u16) -> Result<()> {
         if !item.is_ready() {
             return Ok(());
@@ -191,6 +214,7 @@ impl Bar {
         Ok(())
     }
 
+    /// Draws the background starting at point a on the x-axis until point b.
     fn paint_bg(&self, a: u16, b: u16) -> Result<()> {
         try_xcb!(xcb::poly_fill_rectangle, "failed to draw background",
             &self.conn,
