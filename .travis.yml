@@ -3,6 +3,6 @@ rust:
   - nightly
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y xcb-proto
+  - sudo apt-get install -y xcb-proto libcairo2 libpango-1.0-0 libpangocairo-1.0-0
 script:
   - cargo build --verbose --all
