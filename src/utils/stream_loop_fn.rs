@@ -1,15 +1,16 @@
 use futures::{Stream, Future, IntoFuture, Poll, Async};
 
-pub struct LoopFn<C,F> {
+pub struct LoopFn<C, F> {
     creator: C,
     current: Option<F>,
 }
 
-impl<C,F> LoopFn<C,F> {
-    pub fn new<I>(creator: C) -> LoopFn<C,F>
-        where C: Fn() -> I,
-              I: IntoFuture<Future=F,Item=F::Item,Error=F::Error>,
-              F: Future,
+impl<C, F> LoopFn<C, F> {
+    pub fn new<I>(creator: C) -> LoopFn<C, F>
+    where
+        C: Fn() -> I,
+        I: IntoFuture<Future = F, Item = F::Item, Error = F::Error>,
+        F: Future,
     {
         LoopFn {
             creator,
@@ -18,10 +19,11 @@ impl<C,F> LoopFn<C,F> {
     }
 }
 
-impl<C,F,I> Stream for LoopFn<C,F>
-    where C: Fn() -> I,
-          I: IntoFuture<Future=F,Item=F::Item,Error=F::Error>,
-          F: Future,
+impl<C, F, I> Stream for LoopFn<C, F>
+where
+    C: Fn() -> I,
+    I: IntoFuture<Future = F, Item = F::Item, Error = F::Error>,
+    F: Future,
 {
     type Item = F::Item;
     type Error = F::Error;
@@ -42,7 +44,7 @@ impl<C,F,I> Stream for LoopFn<C,F>
             Ok(Async::Ready(t)) => {
                 self.current = Some((self.creator)().into_future());
                 Ok(Async::Ready(Some(t)))
-            },
+            }
             Ok(Async::NotReady) => Ok(Async::NotReady),
             Err(e) => Err(e),
         }

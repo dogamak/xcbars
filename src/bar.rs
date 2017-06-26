@@ -1,13 +1,7 @@
 use item_state::ItemState;
-use bar_builder::{
-    UpdateStream,
-};
+use bar_builder::UpdateStream;
 use std::rc::Rc;
-use xcb::{
-    Connection,
-    Rectangle,
-    Window,
-};
+use xcb::{Connection, Rectangle, Window};
 use futures::stream::{Merge, MergedItem};
 use futures::{Future, Stream};
 use xcb_event_stream::XcbEventStream;
@@ -39,7 +33,7 @@ impl Bar {
     }
 
     /// Launch and run the bar.
-    pub fn run(mut self) -> Box<Future<Item=(), Error=()>> {
+    pub fn run(mut self) -> Box<Future<Item = (), Error = ()>> {
         let future = self.get_stream()
             .map_err(|e| ::error::Error::with_chain(e, ErrorKind::ItemError))
             .for_each(move |item| -> Result<()> {
@@ -92,11 +86,12 @@ impl Bar {
     /// Unforunately centering means that all components
     /// must be redrawn if even one of them changes size.
     fn redraw_center(&mut self) -> Result<()> {
-        let width_all: u16 = self.center_items.iter()
+        let width_all: u16 = self.center_items
+            .iter()
             .map(|item| item.get_content_width())
             .sum();
 
-        let mut pos = (self.geometry.width())/2-width_all/2;
+        let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
         for item in self.center_items.iter() {
             self.item_positions[item.get_id()].0 = pos;
@@ -114,19 +109,19 @@ impl Bar {
         let mut pos = self.geometry.width();
 
         for n in 0..self.right_items.len() {
-            let item = &self.right_items[self.right_items.len()-n-1];
+            let item = &self.right_items[self.right_items.len() - n - 1];
 
             pos -= item.get_content_width();
 
-            if n < self.right_items.len()-index-1 {
+            if n < self.right_items.len() - index - 1 {
                 continue;
             }
 
             if size_changed {
                 let mut bg_start = pos;
                 let mut bg_end = pos + item.get_content_width();
-                
-                if n == self.right_items.len()-1 {
+
+                if n == self.right_items.len() - 1 {
                     let old_start = self.item_positions[item.get_id()].0 as u16;
                     if old_start < bg_start {
                         bg_start = old_start;
@@ -171,8 +166,8 @@ impl Bar {
             if size_changed {
                 let mut bg_start = pos;
                 let mut bg_end = pos + item.get_content_width();
-                
-                if n == self.left_items.len()-1 {
+
+                if n == self.left_items.len() - 1 {
                     let old_end = self.item_positions[item.get_id()].0 +
                         self.item_positions[item.get_id()].1;
                     if bg_end < old_end {
@@ -201,26 +196,34 @@ impl Bar {
             return Ok(());
         }
 
-        try_xcb!(xcb::copy_area_checked, "failed to copy pixmap",
+        try_xcb!(
+            xcb::copy_area_checked,
+            "failed to copy pixmap",
             &self.conn,
             item.get_pixmap(),
             self.window,
             self.foreground,
-            0, 0,
-            pos as i16, 0,
+            0,
+            0,
+            pos as i16,
+            0,
             item.get_content_width() as u16,
-            self.geometry.height());
+            self.geometry.height()
+        );
 
         Ok(())
     }
 
     /// Draws the background starting at point a on the x-axis until point b.
     fn paint_bg(&self, a: u16, b: u16) -> Result<()> {
-        try_xcb!(xcb::poly_fill_rectangle, "failed to draw background",
+        try_xcb!(
+            xcb::poly_fill_rectangle,
+            "failed to draw background",
             &self.conn,
             self.window,
             self.foreground,
-            &[Rectangle::new(a as i16, 0, b-a, self.geometry.height())]);
+            &[Rectangle::new(a as i16, 0, b - a, self.geometry.height())]
+        );
 
         Ok(())
     }

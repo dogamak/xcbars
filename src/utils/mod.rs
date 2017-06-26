@@ -11,4 +11,3 @@ macro_rules! try_xcb {
             .map_err(|e| $crate::error::Error::with_chain($crate::error::Error::from(e), $error))?;
     }
 }
-

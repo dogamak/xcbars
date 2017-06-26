@@ -8,9 +8,7 @@ pub struct XcbEventStream {
 
 impl XcbEventStream {
     pub fn new(conn: Connection) -> XcbEventStream {
-        XcbEventStream {
-            conn,
-        }
+        XcbEventStream { conn }
     }
 }
 

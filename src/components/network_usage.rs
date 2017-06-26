@@ -1,7 +1,4 @@
-use futures::{
-    Future,
-    Stream,
-};
+use futures::{Future, Stream};
 use std::sync::Arc;
 use tokio_timer::Timer;
 use tokio_core::reactor::Handle;
@@ -43,12 +40,12 @@ pub struct NetworkUsage {
 impl Default for NetworkUsage {
     fn default() -> NetworkUsage {
         NetworkUsage {
-            interface:         "eth0".to_string(),
-            direction:         Direction::Incoming,
-            scale:             Scale::Binary,
-            percision:         3,
+            interface: "eth0".to_string(),
+            direction: Direction::Incoming,
+            scale: Scale::Binary,
+            percision: 3,
             refresh_frequency: Duration::from_secs(10),
-            sample_duration:   Duration::from_secs(1),
+            sample_duration: Duration::from_secs(1),
         }
     }
 }
@@ -60,11 +57,11 @@ fn get_prefix(scale: Scale, power: u8) -> &'static str {
         (Scale::Decimal, 2) => "Mb/s",
         (Scale::Decimal, 3) => "Gb/s",
         (Scale::Decimal, 4) => "Tb/s",
-        (Scale::Binary,  0) => "B/s",
-        (Scale::Binary,  1) => "KiB/s",
-        (Scale::Binary,  2) => "MiB/s",
-        (Scale::Binary,  3) => "GiB/s",
-        (Scale::Binary,  4) => "TiB/s",
+        (Scale::Binary, 0) => "B/s",
+        (Scale::Binary, 1) => "KiB/s",
+        (Scale::Binary, 2) => "MiB/s",
+        (Scale::Binary, 3) => "GiB/s",
+        (Scale::Binary, 4) => "TiB/s",
         _ => "X/s",
     }
 }
@@ -72,7 +69,7 @@ fn get_prefix(scale: Scale, power: u8) -> &'static str {
 fn get_number_scale(number: u64, scale: Scale) -> (f64, u8) {
     let log = (number as f64).log(scale.base() as f64);
     let wholes = log.floor();
-    let over = (scale.base() as f64).powf(log-wholes);
+    let over = (scale.base() as f64).powf(log - wholes);
     (over, wholes as u8)
 }
 
@@ -94,7 +91,7 @@ fn get_bytes(interface: &str, dir: Direction) -> ::std::io::Result<Option<u64>> 
 
 impl Component for NetworkUsage {
     type Error = Error;
-    type Stream = Box<Stream<Item=String, Error=Error>>;
+    type Stream = Box<Stream<Item = String, Error = Error>>;
 
     fn init(&mut self) -> Result<()> {
         ::procinfo::net::dev::dev()?
@@ -118,10 +115,11 @@ impl Component for NetworkUsage {
 
                     let first = get_bytes(conf.interface.as_str(), conf.direction)
                         .unwrap().unwrap();
-                    
+
                     timer.sleep(conf.sample_duration)
                         .and_then(move |()| {
-                            let second = get_bytes(conf.interface.as_str(), conf.direction).unwrap().unwrap();
+                            let second = get_bytes(conf.interface.as_str(), conf.direction)
+                                .unwrap().unwrap();
                             let per_second = (second-first)/conf.sample_duration.as_secs();
                             Ok(per_second)
                         })
@@ -132,6 +130,7 @@ impl Component for NetworkUsage {
                             format!("{} {}", num, get_prefix(conf2.scale, power))
                         })
                 })
-        }).map_err(|_| "timer error".into()).boxed()
+        }).map_err(|_| "timer error".into())
+            .boxed()
     }
 }
