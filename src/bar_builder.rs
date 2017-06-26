@@ -164,7 +164,7 @@ impl BarBuilder {
     }
 
     /// Builds and returns the bar.
-    fn build(self, handle: Handle) -> Result<Bar> {
+    pub fn build(self, handle: Handle) -> Result<Bar> {
         let (window_conn, _) = Connection::connect(None)
             .map_err(|e| ErrorKind::XcbConnection(e))?;
         let (conn, _) = Connection::connect(None)
