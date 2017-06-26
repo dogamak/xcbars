@@ -1,10 +1,9 @@
 use component::Component;
 use tokio_core::reactor::Handle;
-use std::io::{BufReader, BufRead};
+use std::io::BufReader;
 use std::process::{Stdio, Command};
 use tokio_process::{ChildStdout, CommandExt};
-use tokio_io::io::Lines;
-use futures::{future, stream, Stream, Future};
+use futures::{Stream, Future};
 use tokio_timer::Timer;
 use std::time::Duration;
 use utils::LoopFn;
