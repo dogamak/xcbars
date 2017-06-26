@@ -7,19 +7,8 @@ use futures::Stream;
 use pango::FontDescription;
 use xcb_event_stream::XcbEventStream;
 use tokio_core::reactor::{Core, Handle};
-use component::{
-    Slot,
-    ComponentUpdate,
-    ComponentCreator,
-};
-use xcb::{
-    self,
-    Visualtype,
-    Screen,
-    Window,
-    Rectangle,
-    Connection,
-};
+use component::{Slot, ComponentUpdate, ComponentCreator};
+use xcb::{self, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
 /// Defines a color by it's red, green and blue components.
@@ -31,20 +20,15 @@ pub struct Color {
 
 impl Color {
     pub fn new(red: f64, green: f64, blue: f64) -> Color {
-        Color {
-            red,
-            green,
-            blue,
-        }
+        Color { red, green, blue }
     }
 
     /// Transforms this struct into a u32, which is in reality C-packed struct
     /// with the red, green, blue and alpha fields.
     /// Colors represented in this form are required by XCB.
     pub fn as_u32(&self) -> u32 {
-        (((255. * self.red).round() as u32) << 16)
-            + (((255. * self.green).round() as u32) << 8)
-            + (((255. * self.blue).round() as u32) << 0)
+        (((255. * self.red).round() as u32) << 16) + (((255. * self.green).round() as u32) << 8) +
+            (((255. * self.blue).round() as u32) << 0)
     }
 }
 
@@ -52,7 +36,7 @@ impl Color {
 #[derive(Clone)]
 pub enum Position {
     Top,
-    Bottom
+    Bottom,
 }
 
 /// Bar geometry.
@@ -68,7 +52,7 @@ pub enum Geometry {
         height: u16,
         /// Space between the bar and the top or bottom side of the screen in pixels.
         padding_x: u16,
-        /// Space between the bar and the left and right side of the screen in pixels. 
+        /// Space between the bar and the left and right side of the screen in pixels.
         padding_y: u16,
     },
 }
@@ -84,7 +68,7 @@ impl Default for Geometry {
     }
 }
 
-pub type UpdateStream = Box<Stream<Item=ComponentUpdate, Error=::error::Error>>;
+pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Error>>;
 
 /// Struct implementing the builder pattern for `Bar`.
 pub struct BarBuilder {
@@ -116,9 +100,9 @@ impl BarBuilder {
     }
 
     /// Adds a component to the bar into the specified slot.
-    pub fn add_component<C>(mut self, slot: Slot, component: C)
-        -> Self
-        where C: ComponentCreator + 'static,
+    pub fn add_component<C>(mut self, slot: Slot, component: C) -> Self
+    where
+        C: ComponentCreator + 'static,
     {
         self.items.push((slot, Box::new(component)));
         self
@@ -148,10 +132,12 @@ impl BarBuilder {
         self
     }
 
-    /// Consumes and splits self into `self.items` and `BarProperties` struct containing everything else relevant.
-    fn into_items_and_props(self, area: &Rectangle)
-        -> (Vec<(Slot, Box<ComponentCreator>)>, BarProperties)
-    {
+    /// Consumes and splits self into `self.items` and `BarProperties` struct,
+    /// containing everything else relevant.
+    fn into_items_and_props(
+        self,
+        area: &Rectangle,
+    ) -> (Vec<(Slot, Box<ComponentCreator>)>, BarProperties) {
         let props = BarProperties {
             geometry: self.geometry,
             area: area.clone(),
@@ -181,20 +167,21 @@ impl BarBuilder {
             let screen = setup.roots().next().unwrap();
 
             geometry = calculate_geometry(&screen, &self.geometry);
-            window = create_window(
-                &window_conn,
-                &screen,
-                &geometry,
-                self.bg_color.as_u32())?;
+            window = create_window(&window_conn, &screen, &geometry, self.bg_color.as_u32())?;
             visualtype = find_visualtype(&screen).unwrap();
 
             // Create xcb graphics context for drawin te background
-            try_xcb!(xcb::create_gc_checked, "failed to create gcontext",
-                &conn, foreground, screen.root(),
+            try_xcb!(
+                xcb::create_gc_checked,
+                "failed to create gcontext",
+                &conn,
+                foreground,
+                screen.root(),
                 &[
                     (xcb::GC_FOREGROUND, self.bg_color.as_u32()),
-                    (xcb::GC_GRAPHICS_EXPOSURES, 0),
-                ]);
+                    (xcb::GC_GRAPHICS_EXPOSURES, 0)
+                ]
+            );
         }
 
         let conn = Rc::new(conn);
@@ -222,20 +209,22 @@ impl BarBuilder {
             let index = vec.len();
 
             vec.push(ItemState::new(
-                    id,
-                    properties.clone(),
-                    0,
-                    visualtype,
-                    conn.clone(),
-                    window));
+                id,
+                properties.clone(),
+                0,
+                visualtype,
+                conn.clone(),
+                window,
+            ));
 
-            let stream = creator.create(handle.clone())?
-                .map(move |value| ComponentUpdate {
+            let stream = creator.create(handle.clone())?.map(move |value| {
+                ComponentUpdate {
                     slot: slot,
                     index,
                     id,
                     value,
-                });
+                }
+            });
             updates = match updates {
                 None => Some(Box::new(stream)),
                 Some(other) => Some(Box::new(other.select(stream))),
@@ -244,7 +233,8 @@ impl BarBuilder {
 
         // Join the component update stream with
         // a stream carrying events from XCB.
-        let stream = updates.unwrap_or_else(|| Box::new(::futures::stream::empty()))
+        let stream = updates
+            .unwrap_or_else(|| Box::new(::futures::stream::empty()))
             .merge(XcbEventStream::new(window_conn));
 
         Ok(Bar {
@@ -273,14 +263,20 @@ fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
     None
 }
 
-/// Calculates the position and size of the bar on screen given the Geometry struct and screen dimensions.
+/// Calculates the position and size of the bar on
+/// screen given the Geometry struct and screen dimensions.
 fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle {
     let screen_w = screen.width_in_pixels();
     let screen_h = screen.height_in_pixels();
-    
+
     match geometry {
         &Geometry::Absolute(ref rect) => rect.clone(),
-        &Geometry::Relative { ref position, height: bar_height, padding_x, padding_y } => {
+        &Geometry::Relative {
+            ref position,
+            height: bar_height,
+            padding_x,
+            padding_y,
+        } => {
             let x;
             let y;
             let width;
@@ -290,19 +286,19 @@ fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle
                 Position::Top => {
                     x = padding_x as i16;
                     y = padding_y as i16;
-                    width = screen_w-2*padding_x;
+                    width = screen_w - 2 * padding_x;
                     height = bar_height;
-                },
+                }
                 Position::Bottom => {
                     x = padding_x as i16;
-                    y = (screen_h-bar_height-padding_y) as i16;
-                    width = screen_w-2*padding_x;
+                    y = (screen_h - bar_height - padding_y) as i16;
+                    width = screen_w - 2 * padding_x;
                     height = bar_height;
-                },
+                }
             };
 
             Rectangle::new(x, y, width, height)
-        },
+        }
     }
 }
 
@@ -336,9 +332,8 @@ fn create_window<'s>(
     conn: &Connection,
     screen: &Screen<'s>,
     geometry: &Rectangle,
-    background: u32)
-    -> Result<Window>
-{
+    background: u32,
+) -> Result<Window> {
     let window = conn.generate_id();
 
     xcb::create_window(
@@ -346,19 +341,23 @@ fn create_window<'s>(
         xcb::WINDOW_CLASS_COPY_FROM_PARENT as u8,
         window,
         screen.root(),
-        geometry.x(), geometry.y(),
-        geometry.width(), geometry.height(),
+        geometry.x(),
+        geometry.y(),
+        geometry.width(),
+        geometry.height(),
         0,
         xcb::WINDOW_CLASS_INPUT_OUTPUT as u16,
         screen.root_visual(),
         &[
             (xcb::CW_BACK_PIXEL, background), // Default background color
-            (xcb::CW_EVENT_MASK,              // What kinds of events are we
-             xcb::EVENT_MASK_EXPOSURE |       //   interested in
-             xcb::EVENT_MASK_KEY_PRESS |
-             xcb::EVENT_MASK_ENTER_WINDOW),
+            (
+                xcb::CW_EVENT_MASK, // What kinds of events are we
+                xcb::EVENT_MASK_EXPOSURE |       //   interested in
+             xcb::EVENT_MASK_KEY_PRESS | xcb::EVENT_MASK_ENTER_WINDOW,
+            ),
             (xcb::CW_OVERRIDE_REDIRECT, 0),
-        ]);
+        ],
+    );
 
     // TODO: Struts tell the WM to reserve space for our bar. Derive these from the Geometry struct.
     let mut strut = vec![0; 12];
@@ -371,16 +370,25 @@ fn create_window<'s>(
     set_ewhm_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
     set_ewhm_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
     set_ewhm_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
-    set_ewhm_prop!(&conn, window, "_NET_WM_NAME", "xcbars".chars().collect::<Vec<_>>().as_slice()); // TODO: Allow users to define custom window title for the bar.
+    set_ewhm_prop!(
+        &conn,
+        window,
+        "_NET_WM_NAME",
+        "xcbars".chars().collect::<Vec<_>>().as_slice()
+    ); // TODO: Allow users to define custom window title for the bar.
 
     // Request the WM to manage our window.
     xcb::map_window(&conn, window);
 
     // Some WMs (such as OpenBox) require this.
-    xcb::configure_window(&conn, window, &[
-        (xcb::CONFIG_WINDOW_X as u16, geometry.x() as u32),
-        (xcb::CONFIG_WINDOW_Y as u16, geometry.y() as u32),
-    ]);
+    xcb::configure_window(
+        &conn,
+        window,
+        &[
+            (xcb::CONFIG_WINDOW_X as u16, geometry.x() as u32),
+            (xcb::CONFIG_WINDOW_Y as u16, geometry.y() as u32),
+        ],
+    );
 
     conn.flush();
 

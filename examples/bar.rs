@@ -3,20 +3,9 @@ extern crate xcbars;
 extern crate futures;
 extern crate tokio_core;
 
-use xcbars::{
-    BarBuilder,
-    Geometry,
-    Color,
-    Slot,
-    Component,
-    Error,
-    Position,
-};
+use xcbars::{BarBuilder, Geometry, Color, Slot, Component, Error, Position};
 
-use xcbars::components::{
-    Pipe,
-    NetworkUsage,
-};
+use xcbars::components::{Pipe, NetworkUsage};
 
 use futures::{Sink, Stream, Future};
 use tokio_core::reactor::Handle;
@@ -31,11 +20,9 @@ struct Counter {
 
 impl Component for Counter {
     type Error = Error;
-    type Stream = Box<Stream<Item=String, Error=Error>>;
+    type Stream = Box<Stream<Item = String, Error = Error>>;
 
-    fn stream(self, handle: Handle)
-        -> Box<Stream<Item=String, Error=Error>>
-    {
+    fn stream(self, handle: Handle) -> Box<Stream<Item = String, Error = Error>> {
         let (tx, rx) = channel(1);
 
         let remote = handle.remote().clone();
@@ -46,8 +33,8 @@ impl Component for Counter {
                 let tx = tx.clone();
                 remote.clone().spawn(move |_| {
                     tx.send(format!("Count: {}", current))
-                         .map(|_| ())
-                         .map_err(|_| ())
+                        .map(|_| ())
+                        .map_err(|_| ())
                 });
                 current += self.step;
                 sleep(Duration::from_secs(1));
@@ -61,7 +48,7 @@ impl Component for Counter {
 fn main() {
     let down_speed = NetworkUsage {
         interface: "wlp58s0".to_string(),
-        .. Default::default()
+        ..Default::default()
     };
 
     BarBuilder::new()
@@ -74,13 +61,15 @@ fn main() {
         .background(Color::new(1.0, 0.5, 0.5))
         .foreground(Color::new(1., 1., 1.))
         .font("Inconsolata 14")
-        .add_component(Slot::Left, Counter {
-            start: 123,
-            step: 2,
-        })
-        .add_component(Slot::Center, Pipe {
-            command: "date",
-        })
+        .add_component(
+            Slot::Left,
+            Counter {
+                start: 123,
+                step: 2,
+            },
+        )
+        .add_component(Slot::Center, Pipe { command: "date" })
         .add_component(Slot::Right, composite!("Down: ", down_speed))
-        .run().unwrap();
+        .run()
+        .unwrap();
 }

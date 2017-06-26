@@ -44,9 +44,13 @@ macro_rules! composite {
                 fn stream(self, handle: Handle) -> Self::Stream {
                     CompositeComponentStream {
                         states: vec![String::new(); self.components.len()],
-                        streams: self.components.into_iter().enumerate()
-                            .map(|(id, c)| Box::new(c.0.into_stream(handle.clone())
-                                 .map(move |s| (id, s))) as Box<Stream<Item=(usize, String), Error=Error>>)
+                        streams: self.components
+                            .into_iter()
+                            .enumerate()
+                            .map(|(id, c)| {
+                                Box::new(c.0.into_stream(handle.clone()).map(move |s| (id, s))) as
+                                    Box<Stream<Item = (usize, String), Error = Error>>
+                            })
                             .collect(),
                     }
                 }
@@ -60,12 +64,12 @@ macro_rules! composite {
             impl Stream for CompositeComponentStream {
                 type Item = String;
                 type Error = Error;
-                
+
                 fn poll(&mut self) -> Poll<Option<String>, Error> {
                     let mut do_update = false;
                     for stream in self.streams.iter_mut() {
                         match stream.poll() {
-                            Ok(Async::Ready(Some((id, update)))) => {       
+                            Ok(Async::Ready(Some((id, update)))) => {
                                 do_update = true;
                                 self.states[id] = update;
                             },

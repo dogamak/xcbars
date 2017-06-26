@@ -1,23 +1,9 @@
-use pango::{
-    self,
-    LayoutExt,
-    Layout,
-};
+use pango::{self, LayoutExt, Layout};
 use cairo_sys;
 use pangocairo::CairoContextExt;
 use bar_properties::BarProperties;
-use xcb::{
-    self,
-    Window,
-    Screen,
-    Visualtype,
-    Pixmap,
-    Connection,
-};
-use cairo::{
-    Context,
-    Surface,
-};
+use xcb::{self, Window, Screen, Visualtype, Pixmap, Connection};
+use cairo::{Context, Surface};
 use std::rc::Rc;
 use error::Result;
 
@@ -42,9 +28,8 @@ impl ItemState {
         screen_number: usize,
         visualtype: Visualtype,
         conn: Rc<Connection>,
-        window: Window)
-        -> ItemState
-    {
+        window: Window,
+    ) -> ItemState {
         let pixmap = conn.generate_id();
         ItemState {
             bar_props,
@@ -56,7 +41,7 @@ impl ItemState {
             state: String::new(),
             surface: None,
             surface_width: 0,
-            visualtype, 
+            visualtype,
             window,
         }
     }
@@ -90,31 +75,35 @@ impl ItemState {
     fn update_surface(&mut self) -> Result<()> {
         let width = self.content_width;
 
-        if width > self.surface_width ||
-            width < (self.surface_width/10)*6 ||
+        if width > self.surface_width || width < (self.surface_width / 10) * 6 ||
             self.surface.is_none()
         {
-            self.surface_width = (width/10)*13+1;
+            self.surface_width = (width / 10) * 13 + 1;
 
             xcb::free_pixmap(&self.conn, self.pixmap);
             self.pixmap = self.conn.generate_id();
-            
-            try_xcb!(xcb::create_pixmap_checked, "failed to create pixmap",
+
+            try_xcb!(
+                xcb::create_pixmap_checked,
+                "failed to create pixmap",
                 &self.conn,
                 self.get_screen().root_depth(),
                 self.pixmap,
                 self.window,
                 self.surface_width as u16,
-                self.bar_props.area.height());
+                self.bar_props.area.height()
+            );
 
             self.surface = Some(unsafe {
                 Surface::from_raw_full(cairo_sys::cairo_xcb_surface_create(
                     (self.conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t),
                     //self.get_screen().ptr as *mut cairo_sys::xcb_screen_t,
                     self.pixmap,
-                    (&mut self.visualtype.base as *mut xcb::ffi::xcb_visualtype_t) as *mut cairo_sys::xcb_visualtype_t,
+                    (&mut self.visualtype.base as *mut xcb::ffi::xcb_visualtype_t) as
+                        *mut cairo_sys::xcb_visualtype_t,
                     self.surface_width as i32,
-                    self.bar_props.area.height() as i32))
+                    self.bar_props.area.height() as i32,
+                ))
             });
         }
         Ok(())
@@ -168,21 +157,21 @@ impl ItemState {
         ctx.set_source_rgb(
             self.bar_props.bg_color.red,
             self.bar_props.bg_color.green,
-            self.bar_props.bg_color.blue);
+            self.bar_props.bg_color.blue,
+        );
         ctx.paint();
         ctx.set_source_rgb(
             self.bar_props.fg_color.red,
             self.bar_props.fg_color.green,
-            self.bar_props.fg_color.blue);
+            self.bar_props.fg_color.blue,
+        );
         ctx.set_source_rgb(0.1, 0.1, 0.1);
 
-        let text_height = self.bar_props.font.get_size() as f64 /
-            pango::SCALE as f64;
-        let baseline = self.bar_props.area.height() as f64/2. +
-            (text_height/2.) -
+        let text_height = self.bar_props.font.get_size() as f64 / pango::SCALE as f64;
+        let baseline = self.bar_props.area.height() as f64 / 2. + (text_height / 2.) -
             (layout.get_baseline() as f64 / pango::SCALE as f64);
-        
-        ctx.move_to(0., baseline.floor()-1.);
+
+        ctx.move_to(0., baseline.floor() - 1.);
         ctx.update_pango_layout(&layout);
         ctx.show_pango_layout(&layout);
 
