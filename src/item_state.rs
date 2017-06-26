@@ -1,4 +1,5 @@
 use pango::{
+    self,
     LayoutExt,
     Layout,
 };
@@ -174,7 +175,14 @@ impl ItemState {
             self.bar_props.fg_color.green,
             self.bar_props.fg_color.blue);
         ctx.set_source_rgb(0.1, 0.1, 0.1);
-        ctx.move_to(0.,0.);
+
+        let text_height = self.bar_props.font.get_size() as f64 /
+            pango::SCALE as f64;
+        let baseline = self.bar_props.area.height() as f64/2. +
+            (text_height/2.) -
+            (layout.get_baseline() as f64 / pango::SCALE as f64);
+        
+        ctx.move_to(0., baseline.floor()-1.);
         ctx.update_pango_layout(&layout);
         ctx.show_pango_layout(&layout);
 
