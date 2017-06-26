@@ -23,7 +23,7 @@ pub struct Bar {
     pub conn: Rc<Connection>,
     pub foreground: u32,
     pub geometry: Rectangle,
-    pub item_positions: Vec<(i16, u16)>,
+    pub item_positions: Vec<(u16, u16)>,
     pub left_items: Vec<ItemState>,
     pub right_items: Vec<ItemState>,
     pub stream: Option<UpdateAndEventStream>,
@@ -61,12 +61,10 @@ impl Bar {
                         size_changed = self.item_positions[update.id].1 != width;
                     }
 
-                    self.item_positions[update.id].1 = width;
-
                     match update.slot {
                         Slot::Center => self.redraw_center()?,
-                        Slot::Left => self.redraw_end(false, size_changed, update.index)?,
-                        Slot::Right => self.redraw_end(true, size_changed, update.index)?,
+                        Slot::Left => self.redraw_left(size_changed, update.index)?,
+                        Slot::Right => self.redraw_right(size_changed, update.index)?,
                     }
                 }
                 Ok(())
@@ -84,88 +82,121 @@ impl Bar {
     }
 
     fn redraw_center(&mut self) -> Result<()> {
-        let width_all: i16 = self.center_items.iter()
-            .map(|item| item.get_content_width() as i16)
+        let width_all: u16 = self.center_items.iter()
+            .map(|item| item.get_content_width())
             .sum();
 
-        let mut pos = (self.geometry.width() as i16)/2-width_all/2;
+        let mut pos = (self.geometry.width())/2-width_all/2;
 
         for item in self.center_items.iter() {
             self.item_positions[item.get_id()].0 = pos;
             self.draw_item(item, pos)?;
-            pos += item.get_content_width() as i16;
+            self.item_positions[item.get_id()].1 = item.get_content_width();
+            pos += item.get_content_width();
         }
 
         Ok(())
     }
 
-    fn redraw_end(&mut self, side: bool, size_changed: bool, index: usize) -> Result<()> {
-        let (start, direction, items) = match side {
-            false => (0, 1, &self.left_items),
-            true => (self.geometry.width() as i16, -1, &self.right_items),
-        };
+    fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
+        let mut pos = self.geometry.width();
 
-        let mut pos = 0i16;
+        for n in 0..self.right_items.len() {
+            let item = &self.right_items[self.right_items.len()-n-1];
 
-        for i in 0..items.len() {
-            let item = match side {
-                false => &items[i],
-                true => &items[items.len()-i-1],
-            };
+            pos -= item.get_content_width();
 
-            if size_changed && i > index {
-                break;
-            }
-            
-            if side || i > index {
-                pos += item.get_content_width() as i16;
-            }
-
-            if size_changed || i > index {
-                self.paint_bg(item.get_id())?;
-            }
-            
-            let x = start+(pos*direction);
-            self.item_positions[item.get_id()].0 = x;
-            self.draw_item(item, x)?;
-
-            if i < index {
-                pos += item.get_content_width() as i16;
+            if n < self.right_items.len()-index-1 {
                 continue;
             }
+
+            if size_changed {
+                let mut bg_start = pos;
+                let mut bg_end = pos + item.get_content_width();
+                
+                if n == self.right_items.len()-1 {
+                    let old_start = self.item_positions[item.get_id()].0 as u16;
+                    if old_start < bg_start {
+                        bg_start = old_start;
+                    }
+                }
+
+                self.paint_bg(bg_start, bg_end)?;
+            }
+
+            self.item_positions[item.get_id()].0 = pos;
+            self.item_positions[item.get_id()].1 = item.get_content_width();
+            self.draw_item(item, pos)?;
+
+            if !size_changed {
+                break;
+            }
         }
 
-        self.conn.flush();
-        
         Ok(())
     }
 
-    fn draw_item(&self, item: &ItemState, pos: i16) -> Result<()> {
+    fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
+        let mut pos = 0;
+
+        for n in 0..self.left_items.len() {
+            let item = &self.left_items[n];
+
+            if n < index {
+                continue;
+            }
+
+            if size_changed {
+                let mut bg_start = pos;
+                let mut bg_end = pos + item.get_content_width();
+                
+                if n == self.left_items.len()-1 {
+                    let old_end = self.item_positions[item.get_id()].0 +
+                        self.item_positions[item.get_id()].1;
+                    if bg_end < old_end {
+                        bg_end = old_end;
+                    }
+                }
+
+                self.paint_bg(bg_start, bg_end)?;
+            }
+
+            self.item_positions[item.get_id()].0 = pos;
+            self.item_positions[item.get_id()].1 = item.get_content_width();
+            self.draw_item(item, pos)?;
+
+            if !size_changed {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn draw_item(&self, item: &ItemState, pos: u16) -> Result<()> {
         if !item.is_ready() {
             return Ok(());
         }
-        self.paint_bg(item.get_id())?;
+
         try_xcb!(xcb::copy_area_checked, "failed to copy pixmap",
             &self.conn,
             item.get_pixmap(),
             self.window,
             self.foreground,
             0, 0,
-            pos, 0,
+            pos as i16, 0,
             item.get_content_width() as u16,
             self.geometry.height());
+
         Ok(())
     }
 
-    fn paint_bg(&self, index: usize) -> Result<()> {
-        let x = self.item_positions[index].0;
-        let w = self.item_positions[index].1;
-
+    fn paint_bg(&self, a: u16, b: u16) -> Result<()> {
         try_xcb!(xcb::poly_fill_rectangle, "failed to draw background",
             &self.conn,
             self.window,
             self.foreground,
-            &[Rectangle::new(x, 0, w, self.geometry.height())]);
+            &[Rectangle::new(a as i16, 0, b-a, self.geometry.height())]);
 
         Ok(())
     }
