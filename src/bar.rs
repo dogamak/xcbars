@@ -123,7 +123,7 @@ impl Bar {
 
                 if n == self.right_items.len() - 1 {
                     let old_start = self.item_positions[item.get_id()].0 as u16;
-                    if old_start < bg_start {
+                    if old_start < bg_start && old_start > 0 {
                         bg_start = old_start;
                     }
                 }
@@ -181,7 +181,6 @@ impl Bar {
 
             self.item_positions[item.get_id()].0 = pos;
             self.item_positions[item.get_id()].1 = item.get_content_width();
-            println!("Drawing {} pos {}", n, pos);
             self.draw_item(item, pos)?;
 
             if !size_changed {
