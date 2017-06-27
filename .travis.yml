@@ -4,6 +4,5 @@ services:
   - docker
 before_install:
   - docker build -t dogamak/xcbars .
-  - docker run -v "$(pwd):/source" dogamak/xcbars cargo build
 script:
-  - cargo build
+  - docker run -v "$(pwd):/source" dogamak/xcbars cargo build
