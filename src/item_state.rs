@@ -113,7 +113,7 @@ impl ItemState {
         let layout = ctx.create_pango_layout();
 
         layout.set_font_description(Some(&self.bar_props.font));
-        layout.set_text(self.state.as_str(), self.state.len() as i32);
+        layout.set_markup(self.state.as_str(), self.state.len() as i32);
         ctx.update_pango_layout(&layout);
 
         layout
