@@ -8,7 +8,6 @@ macro_rules! composite {
 
             struct CompositeComponent {
                 components: Vec<SubComponent>,
-                stream: CompositeComponentStream,
             }
 
             impl Component for CompositeComponent {
@@ -68,10 +67,6 @@ macro_rules! composite {
 
             CompositeComponent {
                 components: vec![$( SubComponent::from($arg) ),+],
-                stream: CompositeComponentStream {
-                    streams: vec![],
-                    states: vec![],
-                }
             }
         }
     };
