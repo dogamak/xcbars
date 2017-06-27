@@ -68,7 +68,14 @@ fn main() {
                 step: 2,
             },
         )
-        .add_component(Slot::Center, Pipe { command: "date" })
+        .add_component(
+            Slot::Center,
+            Pipe {
+                command: "date".into(),
+                args: Vec::new(),
+                refresh_rate: Some(Duration::from_secs(1)),
+            },
+        )
         .add_component(Slot::Right, composite!("Down: ", down_speed))
         .run()
         .unwrap();

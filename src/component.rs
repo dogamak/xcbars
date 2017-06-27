@@ -2,6 +2,7 @@ use futures::Stream;
 use error::*;
 use std::result::Result as StdResult;
 use tokio_core::reactor::Handle;
+use components::Text;
 
 pub trait Component {
     type Stream: Stream<Item = String, Error = Self::Error> + 'static;
@@ -38,6 +39,23 @@ where
             self.stream(handle)
                 .map_err(|e| Error::with_chain(e, "Component raised an error")),
         )
+    }
+}
+
+pub struct SubComponent(pub Box<ComponentCreator>);
+
+impl<'s> From<&'s str> for SubComponent {
+    fn from(s: &'s str) -> SubComponent {
+        SubComponent(Box::new(Text { text: s.to_string() }))
+    }
+}
+
+impl<C> From<C> for SubComponent
+where
+    C: ComponentCreator + 'static,
+{
+    fn from(c: C) -> SubComponent {
+        SubComponent(Box::new(c))
     }
 }
 

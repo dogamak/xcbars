@@ -2,28 +2,9 @@
 macro_rules! composite {
     ( $( $arg:expr ),+ ) => {
         {
-            use $crate::components::Text;
-            use $crate::component::{Component, ComponentCreator};
+            use $crate::component::{Component, SubComponent};
             use $crate::Error;
             use ::futures::{Poll, Async};
-
-            struct SubComponent(Box<ComponentCreator>);
-
-            impl<'s> From<&'s str> for SubComponent {
-                fn from(s: &'s str) -> SubComponent {
-                    SubComponent(Box::new(Text {
-                        text: s.to_string(),
-                    }))
-                }
-            }
-
-            impl<C> From<C> for SubComponent
-                where C: ComponentCreator + 'static,
-            {
-                fn from(c: C) -> SubComponent {
-                    SubComponent(Box::new(c))
-                }
-            }
 
             struct CompositeComponent {
                 components: Vec<SubComponent>,
