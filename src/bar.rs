@@ -154,12 +154,13 @@ impl Bar {
     /// redraw every component on the right of it. If the item has shrunk
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let pos = 0;
+        let mut pos = 0;
 
         for n in 0..self.left_items.len() {
             let item = &self.left_items[n];
 
             if n < index {
+                pos += item.get_content_width();
                 continue;
             }
 
@@ -180,11 +181,14 @@ impl Bar {
 
             self.item_positions[item.get_id()].0 = pos;
             self.item_positions[item.get_id()].1 = item.get_content_width();
+            println!("Drawing {} pos {}", n, pos);
             self.draw_item(item, pos)?;
 
             if !size_changed {
                 break;
             }
+
+            pos += item.get_content_width();
         }
 
         Ok(())
