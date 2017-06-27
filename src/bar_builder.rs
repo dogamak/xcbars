@@ -9,6 +9,8 @@ use xcb_event_stream::XcbEventStream;
 use tokio_core::reactor::{Core, Handle};
 use component::{Slot, ComponentUpdate, ComponentCreator};
 use xcb::{self, Visualtype, Screen, Window, Rectangle, Connection};
+use xcb::ffi::{randr, xproto};
+use std::ptr;
 
 #[derive(Clone)]
 /// Defines a color by it's red, green and blue components.
@@ -300,6 +302,82 @@ fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle
             Rectangle::new(x, y, width, height)
         }
     }
+}
+
+// TODO: use libc::free() properly
+// Get dimension of specified output
+fn get_screen_dimensions<'s>(
+    conn: &xcb::Connection,
+    setup: &xcb::StructPtr<'s, xcb::ffi::xcb_setup_t>,
+    query_output_name: &str,
+) -> Result<*mut randr::xcb_randr_get_crtc_info_reply_t> {
+    unsafe {
+        let raw_conn = conn.get_raw_conn();
+
+        // Get the root window
+        let root_iterator = xproto::xcb_setup_roots_iterator(setup.ptr);
+        let root_window = (*root_iterator.data).root;
+
+        // Load screen resources of the root window
+        // Return result on error
+        let res_cookie = randr::xcb_randr_get_screen_resources(raw_conn, root_window);
+        let res_reply =
+            randr::xcb_randr_get_screen_resources_reply(raw_conn, res_cookie, ptr::null_mut());
+        if res_reply.is_null() {
+            return Err("Unable to get screen resources.".into());
+        }
+
+        // Get pointer to the first CRTC and number of CRTCs
+        let crtcs_num = randr::xcb_randr_get_screen_resources_crtcs_length(res_reply);
+        let first_crtc = randr::xcb_randr_get_screen_resources_crtcs(res_reply);
+
+        // Use pointer and number to create an array of CRTCs
+        let mut crtc_res_cookies = Vec::with_capacity(crtcs_num as usize);
+        crtc_res_cookies.set_len(crtcs_num as usize);
+        for i in 0..crtcs_num {
+            crtc_res_cookies[i as usize] =
+                randr::xcb_randr_get_crtc_info(raw_conn, *first_crtc.offset(i as isize), 0);
+        }
+
+        for i in 0..crtcs_num {
+            let reply = randr::xcb_randr_get_crtc_info_reply(
+                raw_conn,
+                crtc_res_cookies[i as usize],
+                ptr::null_mut(),
+            );
+            if reply.is_null() || (*reply).width == 0 {
+                continue;
+            }
+            {
+                // Get info about the current crtc's output
+                let output = randr::xcb_randr_get_crtc_info_outputs(reply);
+                let output_info_cookie = randr::xcb_randr_get_output_info(raw_conn, (*output), 0);
+                let output_info_reply = randr::xcb_randr_get_output_info_reply(
+                    raw_conn,
+                    output_info_cookie,
+                    ptr::null_mut(),
+                );
+
+                // Use pointer and length of output name to create a string
+                let output_name_length =
+                    randr::xcb_randr_get_output_info_name_length(output_info_reply);
+                let output_first_char = randr::xcb_randr_get_output_info_name(output_info_reply);
+                let mut output_name = Vec::with_capacity(output_name_length as usize);
+                output_name.set_len(output_name_length as usize);
+                for i in 0..output_name_length {
+                    output_name[i as usize] = *output_first_char.offset(i as isize);
+                }
+                let output_name = String::from_utf8_lossy(&output_name);
+
+                // If the output name is the requested name, return the dimensions
+                if output_name == query_output_name {
+                    return Ok(reply);
+                }
+            }
+        }
+    }
+    let error_msg = ["Unable to find output ", query_output_name].concat();
+    Err(error_msg.into())
 }
 
 /// Convinience macro for setting EWHM properites.
