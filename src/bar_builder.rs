@@ -304,51 +304,45 @@ fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle
 
 // Get dimension of specified output
 fn get_screen_dimensions<'s>(
+    screen: &Screen<'s>,
     conn: &xcb::Connection,
-    setup: &xcb::StructPtr<'s, xcb::ffi::xcb_setup_t>,
     query_output_name: &str,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
-    unsafe {
-        // Get the root window
-        let root_iterator = xcb::ffi::xproto::xcb_setup_roots_iterator(setup.ptr);
-        let root_window = (*root_iterator.data).root;
+    // Load screen resources of the root window
+    // Return result on error
+    let res_cookie = randr::get_screen_resources(conn, screen.root());
+    let res_reply = res_cookie
+        .get_reply()
+        .map_err(|_| "Unable to get screen resources")?;
 
-        // Load screen resources of the root window
-        // Return result on error
-        let res_cookie = randr::get_screen_resources(conn, root_window);
-        let res_reply = res_cookie
-            .get_reply()
-            .map_err(|_| "Unable to get screen resources")?;
+    // Get all crtcs from the reply
+    let crtcs = res_reply.crtcs();
 
-        // Get all crtcs from the reply
-        let crtcs = res_reply.crtcs();
+    for crtc in crtcs {
+        // Get info about crtc
+        let crtc_info_cookie = randr::get_crtc_info(conn, *crtc, 0);
+        let crtc_info_reply = crtc_info_cookie.get_reply();
 
-        for crtc in crtcs {
-            // Get info about crtc
-            let crtc_info_cookie = randr::get_crtc_info(conn, *crtc, 0);
-            let crtc_info_reply = crtc_info_cookie.get_reply();
+        if let Ok(reply) = crtc_info_reply {
+            // Skip this crtc if it has no width or output
+            if reply.width() == 0 || reply.num_outputs() == 0 {
+                continue;
+            }
 
-            if let Ok(reply) = crtc_info_reply {
-                // Skip this crtc if it has no width or output
-                if reply.width() == 0 || reply.num_outputs() == 0 {
-                    continue;
-                }
+            // Get info of crtc's first output for output name
+            let output = reply.outputs()[0];
+            let output_info_cookie = randr::get_output_info(conn, output, 0);
+            let output_info_reply = output_info_cookie.get_reply();
 
-                // Get info of crtc's first output for output name
-                let output = reply.outputs()[0];
-                let output_info_cookie = randr::get_output_info(conn, output, 0);
-                let output_info_reply = output_info_cookie.get_reply();
+            // Get the name of the first output
+            let mut output_name = String::new();
+            if let Ok(output_info_reply) = output_info_reply {
+                output_name = String::from_utf8_lossy(output_info_reply.name()).into();
+            }
 
-                // Get the name of the first output
-                let mut output_name = String::new();
-                if let Ok(output_info_reply) = output_info_reply {
-                    output_name = String::from_utf8_lossy(output_info_reply.name()).into();
-                }
-
-                // If the output name is the requested name, return the dimensions
-                if output_name == query_output_name {
-                    return Ok(reply);
-                }
+            // If the output name is the requested name, return the dimensions
+            if output_name == query_output_name {
+                return Ok(reply);
             }
         }
     }
