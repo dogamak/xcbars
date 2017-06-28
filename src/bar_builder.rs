@@ -72,6 +72,7 @@ pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Erro
 
 /// Struct implementing the builder pattern for `Bar`.
 pub struct BarBuilder {
+    output: String,
     geometry: Geometry,
     bg_color: Color,
     fg_color: Color,
@@ -81,8 +82,9 @@ pub struct BarBuilder {
 
 impl BarBuilder {
     /// Create a new `BarBuilder` with default properties.
-    pub fn new() -> BarBuilder {
+    pub fn new<T: Into<String>>(output: T) -> BarBuilder {
         BarBuilder {
+            output: output.into(),
             geometry: Default::default(),
             bg_color: Color::new(1., 1., 1.),
             fg_color: Color::new(0., 0., 0.),
@@ -166,7 +168,7 @@ impl BarBuilder {
             let setup = conn.get_setup();
             let screen = setup.roots().next().unwrap();
 
-            geometry = calculate_geometry(&screen, &self.geometry);
+            geometry = calculate_geometry(&screen, &self.geometry, &self.output, &conn)?;
             window = create_window(&window_conn, &screen, &geometry, self.bg_color.as_u32())?;
             visualtype = find_visualtype(&screen).unwrap();
 
@@ -265,12 +267,18 @@ fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
 
 /// Calculates the position and size of the bar on
 /// screen given the Geometry struct and screen dimensions.
-fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle {
-    let screen_w = screen.width_in_pixels();
-    let screen_h = screen.height_in_pixels();
+fn calculate_geometry<'s>(
+    screen: &Screen<'s>,
+    geometry: &Geometry,
+    output: &str,
+    conn: &Connection,
+) -> Result<Rectangle> {
+    let screen_info = get_screen_info(screen, conn, output)?;
+    let screen_w = screen_info.width();
+    let screen_h = screen_info.height();
 
     match geometry {
-        &Geometry::Absolute(ref rect) => rect.clone(),
+        &Geometry::Absolute(ref rect) => Ok(rect.clone()),
         &Geometry::Relative {
             ref position,
             height: bar_height,
@@ -297,15 +305,15 @@ fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle
                 }
             };
 
-            Rectangle::new(x, y, width, height)
+            Ok(Rectangle::new(x, y, width, height))
         }
     }
 }
 
-// Get dimension of specified output
-fn get_screen_dimensions<'s>(
+// Get informatio about specified output
+fn get_screen_info<'s>(
     screen: &Screen<'s>,
-    conn: &xcb::Connection,
+    conn: &Connection,
     query_output_name: &str,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
     // Load screen resources of the root window
