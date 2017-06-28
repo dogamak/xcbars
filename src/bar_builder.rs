@@ -276,6 +276,8 @@ fn calculate_geometry<'s>(
     let screen_info = get_screen_info(screen, conn, output)?;
     let screen_w = screen_info.width();
     let screen_h = screen_info.height();
+    let x_offset = screen_info.x();
+    let y_offset = screen_info.y();
 
     match geometry {
         &Geometry::Absolute(ref rect) => Ok(rect.clone()),
@@ -292,14 +294,14 @@ fn calculate_geometry<'s>(
 
             match *position {
                 Position::Top => {
-                    x = padding_x as i16;
-                    y = padding_y as i16;
+                    x = x_offset + padding_x as i16;
+                    y = y_offset + padding_y as i16;
                     width = screen_w - 2 * padding_x;
                     height = bar_height;
                 }
                 Position::Bottom => {
-                    x = padding_x as i16;
-                    y = (screen_h - bar_height - padding_y) as i16;
+                    x = x_offset + padding_x as i16;
+                    y = y_offset + (screen_h - bar_height - padding_y) as i16;
                     width = screen_w - 2 * padding_x;
                     height = bar_height;
                 }
