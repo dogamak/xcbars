@@ -73,6 +73,7 @@ pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Erro
 /// Struct implementing the builder pattern for `Bar`.
 pub struct BarBuilder {
     output: String,
+    window_title: String,
     geometry: Geometry,
     bg_color: Color,
     fg_color: Color,
@@ -85,6 +86,7 @@ impl BarBuilder {
     pub fn new<T: Into<String>>(output: T) -> BarBuilder {
         BarBuilder {
             output: output.into(),
+            window_title: String::from("xcbars"),
             geometry: Default::default(),
             bg_color: Color::new(1., 1., 1.),
             fg_color: Color::new(0., 0., 0.),
@@ -134,6 +136,12 @@ impl BarBuilder {
         self
     }
 
+    /// Set the title of the window.
+    pub fn window_title<T: Into<String>>(mut self, window_title: T) -> Self {
+        self.window_title = window_title.into();
+        self
+    }
+
     /// Consumes and splits self into `self.items` and `BarProperties` struct,
     /// containing everything else relevant.
     fn into_items_and_props(
@@ -169,7 +177,13 @@ impl BarBuilder {
             let screen = setup.roots().next().unwrap();
 
             geometry = calculate_geometry(&screen, &self.geometry, &self.output, &conn)?;
-            window = create_window(&window_conn, &screen, &geometry, self.bg_color.as_u32())?;
+            window = create_window(
+                &window_conn,
+                &screen,
+                &geometry,
+                self.bg_color.as_u32(),
+                &self.window_title,
+            )?;
             visualtype = find_visualtype(&screen).unwrap();
 
             // Create xcb graphics context for drawin te background
@@ -391,6 +405,7 @@ fn create_window<'s>(
     screen: &Screen<'s>,
     geometry: &Rectangle,
     background: u32,
+    window_title: &str,
 ) -> Result<Window> {
     let window = conn.generate_id();
 
@@ -428,12 +443,15 @@ fn create_window<'s>(
     set_ewhm_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
     set_ewhm_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
     set_ewhm_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
-    set_ewhm_prop!(
+    xcb::change_property(
         &conn,
+        xcb::PROP_MODE_REPLACE as u8,
         window,
-        "_NET_WM_NAME",
-        "xcbars".chars().collect::<Vec<_>>().as_slice()
-    ); // TODO: Allow users to define custom window title for the bar.
+        xcb::ATOM_WM_NAME,
+        xcb::ATOM_STRING,
+        8,
+        window_title.as_bytes(),
+    );
 
     // Request the WM to manage our window.
     xcb::map_window(&conn, window);
