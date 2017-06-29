@@ -47,11 +47,11 @@ impl Component for Counter {
 
 fn main() {
     let down_speed = NetworkUsage {
-        interface: "wlp58s0".to_string(),
+        interface: "enp0s31f6".to_string(),
         ..Default::default()
     };
 
-    BarBuilder::new()
+    BarBuilder::new("DVI-0")
         .geometry(Geometry::Relative {
             position: Position::Top,
             height: 20,
