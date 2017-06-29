@@ -1,13 +1,15 @@
 use bar::Bar;
 use std::rc::Rc;
 use error::{Result, ErrorKind};
+use std::error::Error as StdError;
 use item_state::ItemState;
 use bar_properties::BarProperties;
 use futures::Stream;
 use pango::FontDescription;
 use xcb_event_stream::XcbEventStream;
 use tokio_core::reactor::{Core, Handle};
-use component::{Slot, ComponentUpdate, ComponentCreator};
+use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentStateExt};
+use component_context::ComponentContext;
 use xcb::{self, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
@@ -76,7 +78,7 @@ pub struct BarBuilder {
     bg_color: Color,
     fg_color: Color,
     font_name: String,
-    items: Vec<(Slot, Box<ComponentCreator>)>,
+    items: Vec<(Slot, Box<ComponentConfigExt>)>,
 }
 
 impl BarBuilder {
@@ -102,7 +104,8 @@ impl BarBuilder {
     /// Adds a component to the bar into the specified slot.
     pub fn add_component<C>(mut self, slot: Slot, component: C) -> Self
     where
-        C: ComponentCreator + 'static,
+        C: ComponentConfig + 'static,
+        <<C as ComponentConfig>::State as Stream>::Error: StdError + Send,
     {
         self.items.push((slot, Box::new(component)));
         self
@@ -137,7 +140,7 @@ impl BarBuilder {
     fn into_items_and_props(
         self,
         area: &Rectangle,
-    ) -> (Vec<(Slot, Box<ComponentCreator>)>, BarProperties) {
+    ) -> (Vec<(Slot, Box<ComponentConfigExt>)>, BarProperties) {
         let props = BarProperties {
             geometry: self.geometry,
             area: area.clone(),
@@ -190,7 +193,6 @@ impl BarBuilder {
         let mut left_items = vec![];
         let mut center_items = vec![];
         let mut right_items = vec![];
-        let mut updates: Option<UpdateStream> = None;
 
         // Consumes self
         let (items, properties) = self.into_items_and_props(&geometry);
@@ -200,7 +202,7 @@ impl BarBuilder {
         // updates.  The sream also carries information about the
         // source component such as the id, slot and the index of
         // the component in the said slot.
-        for (id, (slot, creator)) in items.into_iter().enumerate() {
+        for (id, (slot, config)) in items.into_iter().enumerate() {
             let vec = match slot {
                 Slot::Left => &mut left_items,
                 Slot::Center => &mut center_items,
@@ -208,44 +210,16 @@ impl BarBuilder {
             };
             let index = vec.len();
 
-            vec.push(ItemState::new(
-                id,
-                properties.clone(),
-                0,
-                visualtype,
-                conn.clone(),
-                window,
-            ));
-
-            let stream = creator.create(handle.clone())?.map(move |value| {
-                ComponentUpdate {
-                    slot: slot,
-                    index,
-                    id,
-                    value,
-                }
-            });
-            updates = match updates {
-                None => Some(Box::new(stream)),
-                Some(other) => Some(Box::new(other.select(stream))),
-            }
+            vec.push((None, config.create(&handle)?));
         }
-
-        // Join the component update stream with
-        // a stream carrying events from XCB.
-        let stream = updates
-            .unwrap_or_else(|| Box::new(::futures::stream::empty()))
-            .merge(XcbEventStream::new(window_conn));
 
         Ok(Bar {
             center_items,
             conn,
             foreground,
             geometry,
-            item_positions: vec![(0, 0); item_count],
             left_items,
             right_items,
-            stream: Some(stream),
             window,
         })
     }

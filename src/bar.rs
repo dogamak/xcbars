@@ -1,27 +1,26 @@
 use item_state::ItemState;
 use bar_builder::UpdateStream;
 use std::rc::Rc;
-use xcb::{Connection, Rectangle, Window};
+use xcb::{Connection, Rectangle, Window, Pixmap};
 use futures::stream::{Merge, MergedItem};
 use futures::{Future, Stream};
 use xcb_event_stream::XcbEventStream;
 use error::*;
 use std::error::Error;
 use xcb;
-use component::Slot;
+use component::{Slot, ComponentStateExt};
+use component_context::ComponentContext;
 
 type UpdateAndEventStream = Merge<UpdateStream, XcbEventStream>;
 
 /// Struct that contains everything needed to run the bar.
 pub struct Bar {
-    pub center_items: Vec<ItemState>,
+    pub left_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
+    pub center_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
+    pub right_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
     pub conn: Rc<Connection>,
     pub foreground: u32,
     pub geometry: Rectangle,
-    pub item_positions: Vec<(u16, u16)>,
-    pub left_items: Vec<ItemState>,
-    pub right_items: Vec<ItemState>,
-    pub stream: Option<UpdateAndEventStream>,
     pub window: Window,
 }
 
@@ -29,7 +28,7 @@ impl Bar {
     /// Returns `self.stream` without borrowing or consuming `self`.
     /// Panics if called twice.
     fn get_stream(&mut self) -> UpdateAndEventStream {
-        ::std::mem::replace(&mut self.stream, None).unwrap()
+        unimplemented!();
     }
 
     /// Launch and run the bar.
@@ -55,10 +54,13 @@ impl Bar {
                             Slot::Center => &mut self.center_items,
                             Slot::Right => &mut self.right_items,
                         };
-                        slot_items[update.index].update(update.value)?;
+                        slot_items[update.index].1.update(Box::new(update.value))?;
 
-                        let width = slot_items[update.index].get_content_width();
-                        size_changed = self.item_positions[update.id].1 != width;
+                        let width = slot_items[update.index].1.get_preferred_width();
+                        size_changed = match slot_items[update.id].0 {
+                            None => true,
+                            Some(ref state) => state.width() != width,
+                        };
                     }
 
                     // Redraw only neccessary stuff
@@ -88,16 +90,23 @@ impl Bar {
     fn redraw_center(&mut self) -> Result<()> {
         let width_all: u16 = self.center_items
             .iter()
-            .map(|item| item.get_content_width())
+            .map(|item| match item.0 {
+                None => 0,
+                Some(ref state) => state.width(),
+            })
             .sum();
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
-        for item in self.center_items.iter() {
-            self.item_positions[item.get_id()].0 = pos;
-            self.draw_item(item, pos)?;
-            self.item_positions[item.get_id()].1 = item.get_content_width();
-            pos += item.get_content_width();
+        for &mut (ref mut context, ref state) in self.center_items.iter_mut() {
+            if let Some(ref mut context) = *context {
+                let width = state.get_preferred_width();
+                context.update(pos, width);
+                // self.draw_item(item, pos)?;
+                pos += width;
+            } else {
+                unreachable!();
+            }
         }
 
         Ok(())
@@ -107,33 +116,50 @@ impl Bar {
     /// The order in which the items are gone through is reversed.
     fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let mut pos = self.geometry.width();
-
         for n in 0..self.right_items.len() {
-            let item = &self.right_items[self.right_items.len() - n - 1];
+            let right_item_count = self.right_items.len();
+            let mut draw_bg_info = None;
+            let pixmap;
+            let width;
 
-            pos -= item.get_content_width();
+            {
+                let &mut (ref mut context, ref state) = &mut self.right_items[right_item_count - n - 1];
+                let context = match *context {
+                    Some(ref mut context) => context,
+                    None => unreachable!(),
+                };
 
-            if n < self.right_items.len() - index - 1 {
-                continue;
-            }
+                width = state.get_preferred_width();
+                pos -= width;
 
-            if size_changed {
-                let mut bg_start = pos;
-                let bg_end = pos + item.get_content_width();
-
-                if n == self.right_items.len() - 1 {
-                    let old_start = self.item_positions[item.get_id()].0 as u16;
-                    if old_start < bg_start {
-                        bg_start = old_start;
-                    }
+                if n < right_item_count - index - 1 {
+                    continue;
                 }
 
+                if size_changed {
+                    let mut bg_start = pos;
+                    let bg_end = pos + width;
+
+                    if n == right_item_count - 1 {
+                        let old_start = context.position();
+                        if old_start < bg_start {
+                            bg_start = old_start;
+                        }
+                    }
+
+                    draw_bg_info = Some((bg_start, bg_end));
+                }
+
+                context.update(pos, width);
+
+                pixmap = context.pixmap();
+            }
+
+            if let Some((bg_start, bg_end)) = draw_bg_info {
                 self.paint_bg(bg_start, bg_end)?;
             }
 
-            self.item_positions[item.get_id()].0 = pos;
-            self.item_positions[item.get_id()].1 = item.get_content_width();
-            self.draw_item(item, pos)?;
+            self.draw_item(pixmap, pos, width)?;
 
             if !size_changed {
                 break;
@@ -155,32 +181,49 @@ impl Bar {
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let pos = 0;
+        let left_item_count = self.left_items.len();
 
         for n in 0..self.left_items.len() {
-            let item = &self.left_items[n];
+            let mut draw_bg_info = None;
+            let pixmap;
+            let width;
 
-            if n < index {
-                continue;
-            }
+            {
+                let &mut (ref mut context, ref state) = &mut self.left_items[n];
+                let context = match *context {
+                    Some(ref mut context) => context,
+                    None => unreachable!(),
+                };
 
-            if size_changed {
-                let bg_start = pos;
-                let mut bg_end = pos + item.get_content_width();
+                width = state.get_preferred_width();
 
-                if n == self.left_items.len() - 1 {
-                    let old_end = self.item_positions[item.get_id()].0 +
-                        self.item_positions[item.get_id()].1;
-                    if bg_end < old_end {
-                        bg_end = old_end;
-                    }
+                if n < index {
+                    continue;
                 }
 
+                if size_changed {
+                    let bg_start = pos;
+                    let mut bg_end = pos + width;
+
+                    if n == left_item_count - 1 {
+                        let old_end = context.position() + context.width();
+                        if bg_end < old_end {
+                            bg_end = old_end;
+                        }
+                    }
+
+                    context.update(pos, width)?;
+                    draw_bg_info = Some((bg_start, bg_end));
+                }
+
+                pixmap = context.pixmap();
+            }
+
+            if let Some((bg_start, bg_end)) = draw_bg_info {
                 self.paint_bg(bg_start, bg_end)?;
             }
 
-            self.item_positions[item.get_id()].0 = pos;
-            self.item_positions[item.get_id()].1 = item.get_content_width();
-            self.draw_item(item, pos)?;
+            self.draw_item(pixmap, pos, width)?;
 
             if !size_changed {
                 break;
@@ -191,23 +234,19 @@ impl Bar {
     }
 
     /// Copies the item's pixmap to the window.
-    fn draw_item(&self, item: &ItemState, pos: u16) -> Result<()> {
-        if !item.is_ready() {
-            return Ok(());
-        }
-
+    fn draw_item(&self, pixmap: Pixmap, pos: u16, width: u16) -> Result<()> {
         try_xcb!(
             xcb::copy_area_checked,
             "failed to copy pixmap",
             &self.conn,
-            item.get_pixmap(),
+            pixmap,
             self.window,
             self.foreground,
             0,
             0,
             pos as i16,
             0,
-            item.get_content_width() as u16,
+            width,
             self.geometry.height()
         );
 
