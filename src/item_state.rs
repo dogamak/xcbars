@@ -165,7 +165,6 @@ impl ItemState {
             self.bar_props.fg_color.green,
             self.bar_props.fg_color.blue,
         );
-        ctx.set_source_rgb(0.1, 0.1, 0.1);
 
         let text_height = self.bar_props.font.get_size() as f64 / pango::SCALE as f64;
         let baseline = self.bar_props.area.height() as f64 / 2. + (text_height / 2.) -
