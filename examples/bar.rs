@@ -51,7 +51,7 @@ fn main() {
         ..Default::default()
     };
 
-    BarBuilder::new("DVI-0")
+    BarBuilder::new()
         .geometry(Geometry::Relative {
             position: Position::Top,
             height: 20,
