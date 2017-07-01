@@ -411,13 +411,13 @@ fn get_primary_screen_info<'s>(
         .map_err(|_| "Unable to get crtc from primary output")?)
 }
 
-/// Convinience macro for setting EWHM properites.
-macro_rules! set_ewhm_prop {
+/// Convinience macro for setting EWMH properites.
+macro_rules! set_ewmh_prop {
     ($conn:expr, $window:expr, $name:expr, @atom $value:expr) => {
         {
             let value_atom = xcb::intern_atom($conn, true, $value)
                 .get_reply().unwrap().atom();
-            set_ewhm_prop!($conn, $window, $name, &[value_atom]);
+            set_ewmh_prop!($conn, $window, $name, &[value_atom]);
         }
     };
     ($conn:expr, $window:expr, $name:expr, $data:expr) => {
@@ -475,11 +475,11 @@ fn create_window<'s>(
     strut[8] = 5;
     strut[9] = 1915;
 
-    set_ewhm_prop!(&conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
-    set_ewhm_prop!(&conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
-    set_ewhm_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
-    set_ewhm_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
-    set_ewhm_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
+    set_ewmh_prop!(&conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
+    set_ewmh_prop!(&conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
+    set_ewmh_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
+    set_ewmh_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
+    set_ewmh_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
     xcb::change_property(
         &conn,
         xcb::PROP_MODE_REPLACE as u8,
