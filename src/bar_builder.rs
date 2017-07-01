@@ -79,6 +79,7 @@ pub struct BarBuilder<'a> {
     fg_color: Color,
     font_name: String,
     items: Vec<(Slot, Box<ComponentCreator>)>,
+    inner_padding: u16,
 }
 
 impl<'a> BarBuilder<'a> {
@@ -92,6 +93,7 @@ impl<'a> BarBuilder<'a> {
             fg_color: Color::new(0., 0., 0.),
             items: vec![],
             font_name: String::new(),
+            inner_padding: 0,
         }
     }
 
@@ -121,6 +123,12 @@ impl<'a> BarBuilder<'a> {
     /// Set the bar's position and size.
     pub fn geometry(mut self, geometry: Geometry) -> Self {
         self.geometry = geometry;
+        self
+    }
+
+    /// Set the inner padding at the left and right side of the bar.
+    pub fn inner_padding(mut self, inner_padding: u16) -> Self {
+        self.inner_padding = inner_padding;
         self
     }
 
@@ -214,6 +222,9 @@ impl<'a> BarBuilder<'a> {
         let mut right_items = vec![];
         let mut updates: Option<UpdateStream> = None;
 
+        // Store inner padding before consumption
+        let inner_padding = self.inner_padding;
+
         // Consumes self
         let (items, properties) = self.into_items_and_props(&geometry);
         let properties = Rc::new(properties);
@@ -269,6 +280,7 @@ impl<'a> BarBuilder<'a> {
             right_items,
             stream: Some(stream),
             window,
+            inner_padding,
         })
     }
 }
