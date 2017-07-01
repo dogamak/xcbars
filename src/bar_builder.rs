@@ -71,8 +71,8 @@ impl Default for Geometry {
 pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Error>>;
 
 /// Struct implementing the builder pattern for `Bar`.
-pub struct BarBuilder {
-    output: String,
+pub struct BarBuilder<'a> {
+    output: Option<&'a str>,
     window_title: String,
     geometry: Geometry,
     bg_color: Color,
@@ -81,11 +81,11 @@ pub struct BarBuilder {
     items: Vec<(Slot, Box<ComponentCreator>)>,
 }
 
-impl BarBuilder {
+impl<'a> BarBuilder<'a> {
     /// Create a new `BarBuilder` with default properties.
-    pub fn new<T: Into<String>>(output: T) -> BarBuilder {
+    pub fn new() -> BarBuilder<'a> {
         BarBuilder {
-            output: output.into(),
+            output: None,
             window_title: String::from("xcbars"),
             geometry: Default::default(),
             bg_color: Color::new(1., 1., 1.),
@@ -109,6 +109,12 @@ impl BarBuilder {
         C: ComponentCreator + 'static,
     {
         self.items.push((slot, Box::new(component)));
+        self
+    }
+
+    /// Set the output you want the bar to be displayed on.
+    pub fn output(mut self, output: &'a str) -> Self {
+        self.output = Some(output);
         self
     }
 
@@ -284,7 +290,7 @@ fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
 fn calculate_geometry<'s>(
     screen: &Screen<'s>,
     geometry: &Geometry,
-    output: &str,
+    output: &Option<&str>,
     conn: &Connection,
 ) -> Result<Rectangle> {
     let screen_info = get_screen_info(screen, conn, output)?;
@@ -330,8 +336,13 @@ fn calculate_geometry<'s>(
 fn get_screen_info<'s>(
     screen: &Screen<'s>,
     conn: &Connection,
-    query_output_name: &str,
+    query_output_name: &Option<&str>,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    if query_output_name.is_none() {
+        return get_primary_screen_info(screen, conn);
+    }
+    let query_output_name = query_output_name.unwrap();
+
     // Load screen resources of the root window
     // Return result on error
     let res_cookie = randr::get_screen_resources(conn, screen.root());
@@ -370,8 +381,34 @@ fn get_screen_info<'s>(
             }
         }
     }
-    let error_msg = ["Unable to find output ", query_output_name].concat();
+    let error_msg = ["Unable to find output ", &query_output_name].concat();
     Err(error_msg.into())
+}
+
+/// Get information about the primary output
+fn get_primary_screen_info<'s>(
+    screen: &Screen<'s>,
+    conn: &Connection,
+) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    // Load primary output
+    let output_cookie = randr::get_output_primary(conn, screen.root());
+    let output_reply = output_cookie
+        .get_reply()
+        .map_err(|_| "Unable to get primary output.")?;
+    let output = output_reply.output();
+
+    // Get crtc of primary output
+    let output_info_cookie = randr::get_output_info(conn, output, 0);
+    let output_info_reply = output_info_cookie
+        .get_reply()
+        .map_err(|_| "Unable to get info about primary output")?;
+    let crtc = output_info_reply.crtc();
+
+    // Get info of primary output's crtc
+    let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
+    Ok(crtc_info_cookie
+        .get_reply()
+        .map_err(|_| "Unable to get crtc from primary output")?)
 }
 
 /// Convinience macro for setting EWHM properites.
