@@ -23,6 +23,7 @@ pub struct Bar {
     pub right_items: Vec<ItemState>,
     pub stream: Option<UpdateAndEventStream>,
     pub window: Window,
+    pub inner_padding: u16,
 }
 
 impl Bar {
@@ -106,7 +107,7 @@ impl Bar {
     /// Pretty much the same as `self.redraw_left` but with `left` replaced with `right`.
     /// The order in which the items are gone through is reversed.
     fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let mut pos = self.geometry.width();
+        let mut pos = self.geometry.width() - self.inner_padding;
 
         for n in 0..self.right_items.len() {
             let item = &self.right_items[self.right_items.len() - n - 1];
@@ -154,7 +155,7 @@ impl Bar {
     /// redraw every component on the right of it. If the item has shrunk
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let mut pos = 0;
+        let mut pos = self.inner_padding;
 
         for n in 0..self.left_items.len() {
             let item = &self.left_items[n];
