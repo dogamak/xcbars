@@ -1,27 +1,79 @@
-use item_state::ItemState;
 use bar_builder::UpdateStream;
 use std::rc::Rc;
-use xcb::{Connection, Rectangle, Window, Pixmap};
+use xcb::{self, Visualtype, Setup, Screen, Connection, Rectangle, Window, Pixmap};
 use futures::stream::{Merge, MergedItem};
-use futures::{Future, Stream};
+use futures::{Poll, Async, Future, Stream};
 use xcb_event_stream::XcbEventStream;
 use error::*;
-use std::error::Error;
-use xcb;
-use component::{Slot, ComponentStateExt};
+use std::error::Error as StdError;
+use error::Error;
+use component::{Slot, ComponentStateWrapperExt};
 use component_context::ComponentContext;
 
 type UpdateAndEventStream = Merge<UpdateStream, XcbEventStream>;
 
+impl Future for Bar {
+    type Item = ();
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(), Error> {
+        let mut updated = vec![];
+        
+        for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
+            match state.poll() {
+                Ok(Async::Ready(Some(()))) => updated.push(index),
+                Err(e) => return Err(e),
+                _ => continue,
+            }
+        }
+
+        for index in updated {
+            let width_changed;
+            
+            {
+                let &mut (ref mut context, ref mut state) =
+                    &mut self.components[index];
+
+                let width = state.get_preferred_width();
+
+                width_changed = context.width().unwrap() != width;
+
+                // context.update_width(width)?;
+                state.render(context.surface().unwrap())?;
+            }
+
+            self.handle_redraw(index, width_changed)?;
+        }
+
+        Ok(Async::NotReady)
+    }
+}
+
+type ComponentInfo = (ComponentContext, Box<ComponentStateWrapperExt>);
+
+pub struct XcbContext {
+    pub conn: Connection,
+    pub window: Window,
+    pub screen_index: usize,
+    pub visualtype: Visualtype,
+}
+
+impl XcbContext {
+    #[inline]
+    pub fn screen<'s>(&'s self) -> Screen<'s> {
+        self.conn.get_setup().roots().nth(self.screen_index).unwrap()
+    } 
+}
+
 /// Struct that contains everything needed to run the bar.
 pub struct Bar {
-    pub left_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
-    pub center_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
-    pub right_items: Vec<(Option<ComponentContext>, Box<ComponentStateExt>)>,
-    pub conn: Rc<Connection>,
+    pub xcb_ctx: Rc<XcbContext>,
+    pub components: Vec<ComponentInfo>,
+    pub left_component_count: usize,
+    pub center_component_count: usize,
+    pub right_component_count: usize,
     pub foreground: u32,
     pub geometry: Rectangle,
-    pub window: Window,
 }
 
 impl Bar {
@@ -31,8 +83,21 @@ impl Bar {
         unimplemented!();
     }
 
+    fn handle_redraw(&mut self, index: usize, width_changed: bool) -> Result<()> {
+        unimplemented!();
+    }
+
+    #[inline]
+    fn slot_items_mut(&mut self, slot: Slot) -> &mut [ComponentInfo] {
+        match slot {
+            Slot::Left => &mut self.components[..self.left_component_count],
+            Slot::Center => &mut self.components[self.left_component_count..self.left_component_count+self.center_component_count],
+            Slot::Right => &mut self.components[self.left_component_count+self.center_component_count..],
+        }
+    }
+
     /// Launch and run the bar.
-    pub fn run(mut self) -> Box<Future<Item = (), Error = ()>> {
+    /* pub fn run(mut self) -> Box<Future<Item = (), Error = ()>> {
         let future = self.get_stream()
             .map_err(|e| ::error::Error::with_chain(e, ErrorKind::ItemError))
             .for_each(move |item| -> Result<()> {
@@ -82,31 +147,24 @@ impl Bar {
             });
 
         Box::new(future)
-    }
+    } */
 
     /// Redraws components in the center slot.
     /// Unforunately centering means that all components
     /// must be redrawn if even one of them changes size.
     fn redraw_center(&mut self) -> Result<()> {
-        let width_all: u16 = self.center_items
+        let width_all: u16 = self.slot_items_mut(Slot::Center)
             .iter()
-            .map(|item| match item.0 {
-                None => 0,
-                Some(ref state) => state.width(),
-            })
+            .map(|item| item.0.width().unwrap_or(0))
             .sum();
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
-        for &mut (ref mut context, ref state) in self.center_items.iter_mut() {
-            if let Some(ref mut context) = *context {
-                let width = state.get_preferred_width();
-                context.update(pos, width);
-                // self.draw_item(item, pos)?;
-                pos += width;
-            } else {
-                unreachable!();
-            }
+        for &mut (ref mut context, ref state) in self.slot_items_mut(Slot::Center) {
+            let width = state.get_preferred_width();
+            context.update(pos, width)?;
+            // self.draw_item(item, pos)?;
+            pos += width;
         }
 
         Ok(())
@@ -116,18 +174,15 @@ impl Bar {
     /// The order in which the items are gone through is reversed.
     fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let mut pos = self.geometry.width();
-        for n in 0..self.right_items.len() {
-            let right_item_count = self.right_items.len();
+        let right_item_count = self.slot_items_mut(Slot::Right).len();
+
+        for n in 0..right_item_count {
             let mut draw_bg_info = None;
             let pixmap;
             let width;
 
             {
-                let &mut (ref mut context, ref state) = &mut self.right_items[right_item_count - n - 1];
-                let context = match *context {
-                    Some(ref mut context) => context,
-                    None => unreachable!(),
-                };
+                let &mut (ref mut context, ref state) = &mut self.slot_items_mut(Slot::Right)[right_item_count - n - 1];
 
                 width = state.get_preferred_width();
                 pos -= width;
@@ -141,7 +196,7 @@ impl Bar {
                     let bg_end = pos + width;
 
                     if n == right_item_count - 1 {
-                        let old_start = context.position();
+                        let old_start = context.position().unwrap();
                         if old_start < bg_start {
                             bg_start = old_start;
                         }
@@ -150,9 +205,9 @@ impl Bar {
                     draw_bg_info = Some((bg_start, bg_end));
                 }
 
-                context.update(pos, width);
+                context.update(pos, width)?;
 
-                pixmap = context.pixmap();
+                pixmap = context.pixmap().unwrap();
             }
 
             if let Some((bg_start, bg_end)) = draw_bg_info {
@@ -181,19 +236,15 @@ impl Bar {
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
         let pos = 0;
-        let left_item_count = self.left_items.len();
+        let left_item_count = self.slot_items_mut(Slot::Left).len();
 
-        for n in 0..self.left_items.len() {
+        for n in 0..left_item_count {
             let mut draw_bg_info = None;
             let pixmap;
             let width;
 
             {
-                let &mut (ref mut context, ref state) = &mut self.left_items[n];
-                let context = match *context {
-                    Some(ref mut context) => context,
-                    None => unreachable!(),
-                };
+                let &mut (ref mut context, ref state) = &mut self.slot_items_mut(Slot::Left)[n];
 
                 width = state.get_preferred_width();
 
@@ -206,7 +257,8 @@ impl Bar {
                     let mut bg_end = pos + width;
 
                     if n == left_item_count - 1 {
-                        let old_end = context.position() + context.width();
+                        let old_end =
+                            context.position().unwrap() + context.width().unwrap();
                         if bg_end < old_end {
                             bg_end = old_end;
                         }
@@ -216,7 +268,7 @@ impl Bar {
                     draw_bg_info = Some((bg_start, bg_end));
                 }
 
-                pixmap = context.pixmap();
+                pixmap = context.pixmap().unwrap();
             }
 
             if let Some((bg_start, bg_end)) = draw_bg_info {
@@ -238,9 +290,9 @@ impl Bar {
         try_xcb!(
             xcb::copy_area_checked,
             "failed to copy pixmap",
-            &self.conn,
+            &self.xcb_ctx.conn,
             pixmap,
-            self.window,
+            self.xcb_ctx.window,
             self.foreground,
             0,
             0,
@@ -258,8 +310,8 @@ impl Bar {
         try_xcb!(
             xcb::poly_fill_rectangle,
             "failed to draw background",
-            &self.conn,
-            self.window,
+            &self.xcb_ctx.conn,
+            self.xcb_ctx.window,
             self.foreground,
             &[Rectangle::new(a as i16, 0, b - a, self.geometry.height())]
         );

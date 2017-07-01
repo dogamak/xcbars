@@ -1,15 +1,14 @@
-use bar::Bar;
+use bar::{XcbContext, Bar};
 use std::rc::Rc;
 use error::{Result, ErrorKind};
 use std::error::Error as StdError;
-use item_state::ItemState;
 use bar_properties::BarProperties;
 use futures::Stream;
 use pango::FontDescription;
 use xcb_event_stream::XcbEventStream;
 use tokio_core::reactor::{Core, Handle};
-use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentStateExt};
 use component_context::ComponentContext;
+use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentStateWrapperExt, ComponentState};
 use xcb::{self, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
@@ -97,15 +96,14 @@ impl BarBuilder {
     pub fn run(self) -> Result<()> {
         let mut core = Core::new()?;
         let bar = self.build(core.handle())?;
-        let future = bar.run();
-        core.run(future).map_err(|()| "event loop error".into())
+        core.run(bar)
     }
 
     /// Adds a component to the bar into the specified slot.
     pub fn add_component<C>(mut self, slot: Slot, component: C) -> Self
     where
         C: ComponentConfig + 'static,
-        <<C as ComponentConfig>::State as Stream>::Error: StdError + Send,
+        <<C as ComponentConfig>::State as ComponentState>::Error: Send,
     {
         self.items.push((slot, Box::new(component)));
         self
@@ -187,12 +185,17 @@ impl BarBuilder {
             );
         }
 
-        let conn = Rc::new(conn);
+        let xcb_ctx = Rc::new(XcbContext {
+            conn: conn,
+            window: window,
+            visualtype: visualtype,
+            screen_index: 0,
+        });
 
-        let item_count = self.items.len();
-        let mut left_items = vec![];
-        let mut center_items = vec![];
-        let mut right_items = vec![];
+        let mut components = vec![];
+        let mut left_component_count = 0;
+        let mut center_component_count = 0;
+        let mut right_component_count = 0;
 
         // Consumes self
         let (items, properties) = self.into_items_and_props(&geometry);
@@ -202,25 +205,28 @@ impl BarBuilder {
         // updates.  The sream also carries information about the
         // source component such as the id, slot and the index of
         // the component in the said slot.
-        for (id, (slot, config)) in items.into_iter().enumerate() {
-            let vec = match slot {
-                Slot::Left => &mut left_items,
-                Slot::Center => &mut center_items,
-                Slot::Right => &mut right_items,
-            };
-            let index = vec.len();
+        for (slot, config) in items.into_iter() {
+            match slot {
+                Slot::Left => left_component_count += 1,
+                Slot::Center => center_component_count += 1,
+                Slot::Right => right_component_count += 1,
+            }
 
-            vec.push((None, config.create(&handle)?));
+            let context = ComponentContext::new(xcb_ctx.clone(), geometry.height());
+
+            let state = config.create(&handle)?;
+            
+            components.push((context, state));
         }
 
         Ok(Bar {
-            center_items,
-            conn,
+            components,
+            left_component_count,
+            center_component_count,
+            right_component_count,
             foreground,
             geometry,
-            left_items,
-            right_items,
-            window,
+            xcb_ctx,
         })
     }
 }

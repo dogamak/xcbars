@@ -14,17 +14,17 @@ extern crate tokio_timer;
 
 #[macro_use]
 mod utils;
-pub mod components;
+// pub mod components;
 mod error;
 mod bar;
-mod item_state;
 mod bar_builder;
 mod bar_properties;
 mod xcb_event_stream;
 pub mod component;
+mod component_context;
 
 pub use bar_builder::{Color, BarBuilder, Geometry, Position};
 pub use bar_properties::BarProperties;
-pub use component::{Slot, Component};
+pub use component::{Slot};
 pub use bar::Bar;
 pub use error::Error;
