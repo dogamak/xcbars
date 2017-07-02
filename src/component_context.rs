@@ -5,6 +5,7 @@ use error::Result;
 use std::rc::Rc;
 use bar::XcbContext;
 
+/// Stores information related to rendering the Component.
 struct ComponentGraphicalContext {
     position: u16,
     width: u16,
@@ -13,6 +14,8 @@ struct ComponentGraphicalContext {
     screen_index: usize,
 }
 
+/// Stores component related information which the Component itself
+/// isn't concerned of.
 pub struct ComponentContext {
     graphical_context: Option<ComponentGraphicalContext>,
     xcb_context: Rc<XcbContext>,

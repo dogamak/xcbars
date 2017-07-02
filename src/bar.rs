@@ -1,4 +1,4 @@
-use bar_builder::UpdateStream;
+use bar_builder::Color;
 use std::rc::Rc;
 use xcb::{self, Visualtype, Setup, Screen, Connection, Rectangle, Window, Pixmap};
 use futures::stream::{Merge, MergedItem};
@@ -7,50 +7,13 @@ use xcb_event_stream::XcbEventStream;
 use error::*;
 use std::error::Error as StdError;
 use error::Error;
+use pango::FontDescription;
 use component::{Slot, ComponentStateWrapperExt};
 use component_context::ComponentContext;
 
-type UpdateAndEventStream = Merge<UpdateStream, XcbEventStream>;
-
-impl Future for Bar {
-    type Item = ();
-    type Error = Error;
-
-    fn poll(&mut self) -> Poll<(), Error> {
-        let mut updated = vec![];
-        
-        for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
-            match state.poll() {
-                Ok(Async::Ready(Some(()))) => updated.push(index),
-                Err(e) => return Err(e),
-                _ => continue,
-            }
-        }
-
-        for index in updated {
-            let width_changed;
-            
-            {
-                let &mut (ref mut context, ref mut state) =
-                    &mut self.components[index];
-
-                let width = state.get_preferred_width();
-
-                width_changed = context.width().unwrap() != width;
-
-                // context.update_width(width)?;
-                state.render(context.surface().unwrap())?;
-            }
-
-            self.handle_redraw(index, width_changed)?;
-        }
-
-        Ok(Async::NotReady)
-    }
-}
-
 type ComponentInfo = (ComponentContext, Box<ComponentStateWrapperExt>);
 
+/// Struct for holding XCB related information required by various components.
 pub struct XcbContext {
     pub conn: Connection,
     pub window: Window,
@@ -65,6 +28,14 @@ impl XcbContext {
     } 
 }
 
+/// Struct for storing basic information about the Bar.
+/// This is handed down for the Components.
+pub struct BarInfo {
+    pub fg: Color,
+    pub bg: Color,
+    pub font: FontDescription,
+}
+
 /// Struct that contains everything needed to run the bar.
 pub struct Bar {
     pub xcb_ctx: Rc<XcbContext>,
@@ -77,12 +48,6 @@ pub struct Bar {
 }
 
 impl Bar {
-    /// Returns `self.stream` without borrowing or consuming `self`.
-    /// Panics if called twice.
-    fn get_stream(&mut self) -> UpdateAndEventStream {
-        unimplemented!();
-    }
-
     fn handle_redraw(&mut self, index: usize, width_changed: bool) -> Result<()> {
         unimplemented!();
     }
@@ -317,5 +282,45 @@ impl Bar {
         );
 
         Ok(())
+    }
+}
+
+impl Future for Bar {
+    type Item = ();
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<(), Error> {
+        let mut updated = vec![];
+        
+        for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
+            match state.poll() {
+                Ok(Async::Ready(Some(()))) => updated.push(index),
+                Err(e) => return Err(e),
+                _ => continue,
+            }
+        }
+
+        for index in updated {
+            let width_changed;
+            
+            {
+                let &mut (ref mut context, ref mut state) =
+                    &mut self.components[index];
+
+                let width = state.get_preferred_width();
+
+                width_changed = context.width().unwrap() != width;
+
+                // context.update_width(width)?;
+                state.render(
+                    context.surface().unwrap(),
+                    width,
+                    self.geometry.height())?;
+            }
+
+            self.handle_redraw(index, width_changed)?;
+        }
+
+        Ok(Async::NotReady)
     }
 }

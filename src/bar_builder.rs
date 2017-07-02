@@ -1,4 +1,4 @@
-use bar::{XcbContext, Bar};
+use bar::{XcbContext, Bar, BarInfo};
 use std::rc::Rc;
 use error::{Result, ErrorKind};
 use std::error::Error as StdError;
@@ -135,16 +135,13 @@ impl BarBuilder {
 
     /// Consumes and splits self into `self.items` and `BarProperties` struct,
     /// containing everything else relevant.
-    fn into_items_and_props(
+    fn into_components_and_info(
         self,
         area: &Rectangle,
-    ) -> (Vec<(Slot, Box<ComponentConfigExt>)>, BarProperties) {
-        let props = BarProperties {
-            geometry: self.geometry,
-            area: area.clone(),
-            accent_color: None,
-            fg_color: self.fg_color,
-            bg_color: self.bg_color,
+    ) -> (Vec<(Slot, Box<ComponentConfigExt>)>, BarInfo) {
+        let props = BarInfo {
+            fg: self.fg_color,
+            bg: self.bg_color,
             font: FontDescription::from_string(&*self.font_name),
         };
         (self.items, props)
@@ -198,8 +195,8 @@ impl BarBuilder {
         let mut right_component_count = 0;
 
         // Consumes self
-        let (items, properties) = self.into_items_and_props(&geometry);
-        let properties = Rc::new(properties);
+        let (items, info) = self.into_components_and_info(&geometry);
+        let info = Rc::new(info);
 
         // Initiate components and convert them into a stream of
         // updates.  The sream also carries information about the
@@ -214,7 +211,7 @@ impl BarBuilder {
 
             let context = ComponentContext::new(xcb_ctx.clone(), geometry.height());
 
-            let state = config.create(&handle)?;
+            let state = config.create(info.clone(), &handle)?;
             
             components.push((context, state));
         }
