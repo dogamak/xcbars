@@ -28,7 +28,7 @@ impl Color {
     /// Colors represented in this form are required by XCB.
     pub fn as_u32(&self) -> u32 {
         (((255. * self.red).round() as u32) << 16) + (((255. * self.green).round() as u32) << 8) +
-            (((255. * self.blue).round() as u32) << 0)
+            ((255. * self.blue).round() as u32)
     }
 }
 
@@ -69,6 +69,7 @@ impl Default for Geometry {
 }
 
 pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Error>>;
+type Items = Vec<(Slot, Box<ComponentCreator>)>;
 
 /// Struct implementing the builder pattern for `Bar`.
 pub struct BarBuilder<'a> {
@@ -78,8 +79,15 @@ pub struct BarBuilder<'a> {
     bg_color: Color,
     fg_color: Color,
     font_name: String,
-    items: Vec<(Slot, Box<ComponentCreator>)>,
+    items: Items,
     inner_padding: u16,
+}
+
+/// Implement default for `BarBuilder` because `new()` doesn't require arguments.
+impl<'a> Default for BarBuilder<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> BarBuilder<'a> {
@@ -100,8 +108,8 @@ impl<'a> BarBuilder<'a> {
     /// Create a `tokio` event loop and run launch the bar on it.
     pub fn run(self) -> Result<()> {
         let mut core = Core::new()?;
-        let bar = self.build(core.handle())?;
-        let future = bar.run();
+        let xcbar = self.build(core.handle())?;
+        let future = xcbar.run();
         core.run(future).map_err(|()| "event loop error".into())
     }
 
@@ -158,13 +166,10 @@ impl<'a> BarBuilder<'a> {
 
     /// Consumes and splits self into `self.items` and `BarProperties` struct,
     /// containing everything else relevant.
-    fn into_items_and_props(
-        self,
-        area: &Rectangle,
-    ) -> (Vec<(Slot, Box<ComponentCreator>)>, BarProperties) {
+    fn into_items_and_props(self, area: &Rectangle) -> (Items, BarProperties) {
         let props = BarProperties {
             geometry: self.geometry,
-            area: area.clone(),
+            area: *area,
             accent_color: None,
             fg_color: self.fg_color,
             bg_color: self.bg_color,
@@ -175,10 +180,8 @@ impl<'a> BarBuilder<'a> {
 
     /// Builds and returns the bar.
     pub fn build(self, handle: Handle) -> Result<Bar> {
-        let (window_conn, _) = Connection::connect(None)
-            .map_err(|e| ErrorKind::XcbConnection(e))?;
-        let (conn, _) = Connection::connect(None)
-            .map_err(|e| ErrorKind::XcbConnection(e))?;
+        let (window_conn, _) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
+        let (conn, _) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
 
         let geometry;
         let window;
@@ -287,7 +290,7 @@ impl<'a> BarBuilder<'a> {
 
 /// Finds a visual type matching the one of the screen provided.
 fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
-    'DEPTH: for depth in screen.allowed_depths() {
+    for depth in screen.allowed_depths() {
         for visual in depth.visuals() {
             if visual.visual_id() == screen.root_visual() {
                 return Some(visual);
@@ -311,9 +314,9 @@ fn calculate_geometry<'s>(
     let x_offset = screen_info.x();
     let y_offset = screen_info.y();
 
-    match geometry {
-        &Geometry::Absolute(ref rect) => Ok(rect.clone()),
-        &Geometry::Relative {
+    match *geometry {
+        Geometry::Absolute(ref rect) => Ok(*rect),
+        Geometry::Relative {
             ref position,
             height: bar_height,
             padding_x,
@@ -393,7 +396,7 @@ fn get_screen_info<'s>(
             }
         }
     }
-    let error_msg = ["Unable to find output ", &query_output_name].concat();
+    let error_msg = ["Unable to find output ", query_output_name].concat();
     Err(error_msg.into())
 }
 
@@ -459,7 +462,7 @@ fn create_window<'s>(
     let window = conn.generate_id();
 
     xcb::create_window(
-        &conn,
+        conn,
         xcb::WINDOW_CLASS_COPY_FROM_PARENT as u8,
         window,
         screen.root(),
@@ -487,13 +490,13 @@ fn create_window<'s>(
     strut[8] = 5;
     strut[9] = 1915;
 
-    set_ewmh_prop!(&conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
-    set_ewmh_prop!(&conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
-    set_ewmh_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
-    set_ewmh_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
-    set_ewmh_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
+    set_ewmh_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
+    set_ewmh_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
+    set_ewmh_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
+    set_ewmh_prop!(conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
+    set_ewmh_prop!(conn, window, "_NET_WM_STRUT", &strut[0..4]);
     xcb::change_property(
-        &conn,
+        conn,
         xcb::PROP_MODE_REPLACE as u8,
         window,
         xcb::ATOM_WM_NAME,
@@ -503,11 +506,11 @@ fn create_window<'s>(
     );
 
     // Request the WM to manage our window.
-    xcb::map_window(&conn, window);
+    xcb::map_window(conn, window);
 
     // Some WMs (such as OpenBox) require this.
     xcb::configure_window(
-        &conn,
+        conn,
         window,
         &[
             (xcb::CONFIG_WINDOW_X as u16, geometry.x() as u32),
