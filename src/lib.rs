@@ -14,7 +14,7 @@ extern crate tokio_timer;
 
 #[macro_use]
 mod utils;
-// pub mod components;
+pub mod components;
 mod error;
 mod bar;
 mod bar_builder;
