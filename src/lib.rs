@@ -22,6 +22,7 @@ mod bar_properties;
 mod xcb_event_stream;
 pub mod component;
 mod component_context;
+mod string_component;
 
 pub use bar_builder::{Color, BarBuilder, Geometry, Position};
 pub use bar_properties::BarProperties;
