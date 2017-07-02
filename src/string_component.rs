@@ -11,7 +11,7 @@ use error::Error;
 use std::error::Error as StdError;
 use std::marker::PhantomData;
 
-trait StringComponent: Sized {
+pub trait StringComponent: Sized {
     type Stream: Stream<Item=String, Error=Self::Error>;
     type Error: StdError;
     

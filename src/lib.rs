@@ -29,3 +29,4 @@ pub use bar_properties::BarProperties;
 pub use component::{Slot};
 pub use bar::Bar;
 pub use error::Error;
+pub use string_component::{StringComponent, StringComponentState};
