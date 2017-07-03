@@ -87,20 +87,24 @@ impl Bar {
     /// Unforunately centering means that all components
     /// must be redrawn if even one of them changes size.
     fn redraw_center(&mut self) -> Result<()> {
-        // Draw blank background to prevent leftovers after shrinkage
-        if let Some(first) = self.center_items.first() {
-            let old_start = self.item_positions[first.get_id()].0;
-            let old_width_all: u16 = self.center_items
-                .iter()
-                .map(|item| self.item_positions[item.get_id()].1)
-                .sum();
-            self.paint_bg(old_start, old_start + old_width_all)?;
-        }
-
+        // Get future width of all center components
         let width_all: u16 = self.center_items
             .iter()
             .map(|item| item.get_content_width())
             .sum();
+
+        // Draw blank background to prevent leftovers after shrinkage
+        // Only does this when component width has shrunk
+        let old_width_all: u16 = self.center_items
+            .iter()
+            .map(|item| self.item_positions[item.get_id()].1)
+            .sum();
+        if width_all < old_width_all {
+            if let Some(first) = self.center_items.first() {
+                let old_start = self.item_positions[first.get_id()].0;
+                self.paint_bg(old_start, old_start + old_width_all)?;
+            }
+        }
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
