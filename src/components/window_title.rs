@@ -1,11 +1,10 @@
 use component::Component;
 use tokio_core::reactor::Handle;
-use futures::{Stream, Future};
-use tokio_timer::Timer;
 use std::time::Duration;
-use utils::LoopFn;
 use error::Error;
 use xcb::{self, Connection};
+use xcb_event_stream;
+use futures::stream::Stream;
 
 /// This struct is used for creation and storing the refresh rate.
 pub struct WindowTitle {
@@ -50,12 +49,22 @@ impl Component for WindowTitle {
     type Stream = Box<Stream<Item = String, Error = Error>>;
 
     fn stream(self, _: Handle) -> Self::Stream {
-        LoopFn::new(move || {
-            let timer = Timer::default();
-            timer
-                .sleep(self.refresh_rate)
-                .and_then(|_| Ok(get_window_title()))
-        }).map_err(|_| "timer error".into())
-            .boxed()
+        let (conn, screen_num) = Connection::connect(None).unwrap();
+
+        {
+            let setup = conn.get_setup();
+            let screen = setup.roots().nth(screen_num as usize).unwrap();
+
+            xcb::change_window_attributes(
+                &conn,
+                screen.root(),
+                &[(xcb::CW_EVENT_MASK, xcb::EVENT_MASK_PROPERTY_CHANGE)],
+            );
+        }
+
+        conn.flush();
+        let stream = xcb_event_stream::XcbEventStream::new(conn)
+            .and_then(move |_| Ok(get_window_title()));
+        return Box::new(stream);
     }
 }
