@@ -7,16 +7,7 @@ use xcb_event_stream;
 use futures::stream::Stream;
 
 /// This struct is used for creation and storing the refresh rate.
-pub struct WindowTitle {
-    pub refresh_rate: Duration,
-}
-
-// Set the default refresh rate used for this component to one second.
-impl Default for WindowTitle {
-    fn default() -> WindowTitle {
-        WindowTitle { refresh_rate: Duration::from_secs(1) }
-    }
-}
+pub struct WindowTitle {}
 
 // Get the title of the window that currently is focused
 fn get_window_title() -> String {
