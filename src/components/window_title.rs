@@ -1,10 +1,11 @@
 use component::Component;
 use tokio_core::reactor::Handle;
-use std::time::Duration;
 use error::Error;
 use xcb::{self, Connection};
 use xcb_event_stream;
 use futures::stream::Stream;
+
+const ATOM_FOCUS_CHANGE: xcb::AtomEnum = 334;
 
 /// This struct is used for creation and storing the refresh rate.
 pub struct WindowTitle {}
@@ -55,7 +56,13 @@ impl Component for WindowTitle {
 
         conn.flush();
         let stream = xcb_event_stream::XcbEventStream::new(conn)
+            .filter(|event| {
+                let property_event: &xcb::PropertyNotifyEvent = xcb::cast_event(&event);
+                let property_atom = property_event.atom();
+                property_atom == ATOM_FOCUS_CHANGE
+            })
             .and_then(move |_| Ok(get_window_title()));
-        return Box::new(stream);
+
+        Box::new(stream)
     }
 }
