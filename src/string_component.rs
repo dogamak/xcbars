@@ -61,7 +61,7 @@ impl<C> ComponentState for StringComponentState<C>
         }
     }
 
-    fn render(&self, surface: &mut Surface, height: u16, width: u16) -> Result<(), Self::Error> {
+    fn render(&self, surface: &mut Surface, width: u16, height: u16) -> Result<(), Self::Error> {
         let ctx = Context::new(surface);
 
         let layout = ctx.create_pango_layout();
@@ -81,7 +81,6 @@ impl<C> ComponentState for StringComponentState<C>
             self.bar_info.fg.green,
             self.bar_info.fg.blue,
         );
-        ctx.set_source_rgb(0.1, 0.1, 0.1);
 
         let text_height = self.bar_info.font.get_size() as f64 / pango::SCALE as f64;
         let baseline = height as f64 / 2. + (text_height / 2.) -

@@ -149,8 +149,6 @@ impl BarBuilder {
 
     /// Builds and returns the bar.
     pub fn build(self, handle: Handle) -> Result<Bar> {
-        let (window_conn, _) = Connection::connect(None)
-            .map_err(|e| ErrorKind::XcbConnection(e))?;
         let (conn, _) = Connection::connect(None)
             .map_err(|e| ErrorKind::XcbConnection(e))?;
 
@@ -165,9 +163,9 @@ impl BarBuilder {
             let screen = setup.roots().next().unwrap();
 
             geometry = calculate_geometry(&screen, &self.geometry);
-            window = create_window(&window_conn, &screen, &geometry, self.bg_color.as_u32())?;
+            window = create_window(&conn, &screen, &geometry, self.bg_color.as_u32())?;
             visualtype = find_visualtype(&screen).unwrap();
-
+            
             // Create xcb graphics context for drawin te background
             try_xcb!(
                 xcb::create_gc_checked,

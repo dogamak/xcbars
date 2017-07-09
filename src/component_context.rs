@@ -7,11 +7,9 @@ use bar::XcbContext;
 
 /// Stores information related to rendering the Component.
 struct ComponentGraphicalContext {
-    position: u16,
     width: u16,
     pixmap: Pixmap,
     surface: Surface,
-    screen_index: usize,
 }
 
 /// Stores component related information which the Component itself
@@ -20,7 +18,7 @@ pub struct ComponentContext {
     graphical_context: Option<ComponentGraphicalContext>,
     xcb_context: Rc<XcbContext>,
     height: u16,
-    pixmap_width: u16,
+    pub position: Option<u16>,
 }
 
 impl ComponentContext {
@@ -29,15 +27,7 @@ impl ComponentContext {
             graphical_context: None,
             xcb_context: xcb_context,
             height: height,
-            pixmap_width: 0,
-        }
-    }
-
-    #[inline]
-    pub fn position(&self) -> Option<u16> {
-        match self.graphical_context {
-            Some(ref gctx) => Some(gctx.position),
-            None => None,
+            position: None,
         }
     }
 
@@ -65,11 +55,15 @@ impl ComponentContext {
         }
     }
 
-    pub fn update(&mut self, position: u16, mut width: u16) -> Result<()> {
-        if width > self.pixmap_width {
+    pub fn update_width(&mut self, mut width: u16) -> Result<()> {
+        if let Some(ref mut gctx) = self.graphical_context {
+            if width > gctx.width {
+                width = (width*13)/10;
+            } else if width > (gctx.width*8)/10 {
+                return Ok(());
+            }
+        } else {
             width = (width*13)/10;
-        } else if width > (self.pixmap_width*8)/10 {
-            return Ok(());
         }
 
         let pixmap = self.create_pixmap(width)?;
@@ -78,15 +72,21 @@ impl ComponentContext {
         if let Some(ref mut gctx) = self.graphical_context {
             gctx.pixmap = pixmap;
             gctx.surface = surface;
+            gctx.width = width;
+        } else {
+            self.graphical_context = Some(ComponentGraphicalContext {
+                pixmap: pixmap,
+                surface: surface,
+                width: width,
+            });
         }
-        
-        self.pixmap_width = width;
 
         Ok(())
     }
 
     fn create_pixmap(&self, width: u16) -> Result<Pixmap> {
         let pixmap = self.xcb_context.conn.generate_id();
+
         try_xcb!(
             xcb::create_pixmap_checked,
             "failed to create pixmap",
@@ -97,6 +97,7 @@ impl ComponentContext {
             width,
             self.height
         );
+
         Ok(pixmap)
     }
 
@@ -108,7 +109,7 @@ impl ComponentContext {
                 pixmap,
                 (&self.xcb_context.visualtype.base as *const xcb::ffi::xcb_visualtype_t) as
                     *mut cairo_sys::xcb_visualtype_t,
-                self.pixmap_width as i32,
+                width as i32,
                 self.height as i32,
             ))
         }

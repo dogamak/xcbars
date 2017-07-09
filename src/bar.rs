@@ -49,7 +49,13 @@ pub struct Bar {
 
 impl Bar {
     fn handle_redraw(&mut self, index: usize, width_changed: bool) -> Result<()> {
-        unimplemented!();
+        if index < self.left_component_count {
+            self.redraw_left(width_changed, index)
+        } else if index < self.left_component_count + self.center_component_count {
+            self.redraw_center()
+        } else {
+            self.redraw_right(width_changed, index)
+        }
     }
 
     #[inline]
@@ -125,10 +131,17 @@ impl Bar {
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
-        for &mut (ref mut context, ref state) in self.slot_items_mut(Slot::Center) {
-            let width = state.get_preferred_width();
-            context.update(pos, width)?;
-            // self.draw_item(item, pos)?;
+        let mut center = self.slot_items_mut(Slot::Center).len();
+        for n in 0..self.center_component_count {
+            let pixmap;
+            let width;
+            {
+                let &mut (ref mut context, ref state) = &mut self.components[self.left_component_count + n];
+                width = state.get_preferred_width();
+                context.position = Some(pos);
+                pixmap = context.pixmap().unwrap();
+            }
+            self.draw_item(pixmap, pos, width)?;
             pos += width;
         }
 
@@ -161,16 +174,17 @@ impl Bar {
                     let bg_end = pos + width;
 
                     if n == right_item_count - 1 {
-                        let old_start = context.position().unwrap();
-                        if old_start < bg_start {
-                            bg_start = old_start;
+                        if let Some(old_start) = context.position {
+                            if old_start < bg_start {
+                                bg_start = old_start;
+                            }
                         }
                     }
 
                     draw_bg_info = Some((bg_start, bg_end));
                 }
 
-                context.update(pos, width)?;
+                context.position = Some(pos);
 
                 pixmap = context.pixmap().unwrap();
             }
@@ -222,14 +236,15 @@ impl Bar {
                     let mut bg_end = pos + width;
 
                     if n == left_item_count - 1 {
-                        let old_end =
-                            context.position().unwrap() + context.width().unwrap();
-                        if bg_end < old_end {
-                            bg_end = old_end;
+                        if let Some(old_start) = context.position {
+                            let old_end = old_start + context.width().unwrap();
+                            if bg_end < old_end {
+                                bg_end = old_end;
+                            }
                         }
                     }
 
-                    context.update(pos, width)?;
+                    context.position = Some(pos);
                     draw_bg_info = Some((bg_start, bg_end));
                 }
 
@@ -309,9 +324,12 @@ impl Future for Bar {
 
                 let width = state.get_preferred_width();
 
-                width_changed = context.width().unwrap() != width;
+                width_changed = match context.width() {
+                    Some(prev_width) => width != prev_width,
+                    None => true,
+                };
 
-                // context.update_width(width)?;
+                context.update_width(width)?;
                 state.render(
                     context.surface().unwrap(),
                     width,
