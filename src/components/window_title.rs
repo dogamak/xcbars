@@ -56,7 +56,7 @@ impl Component for WindowTitle {
 
         conn.flush();
         let stream = xcb_event_stream::XcbEventStream::new(conn)
-            .filter(|event| {
+            .filter(|event| unsafe {
                 let property_event: &xcb::PropertyNotifyEvent = xcb::cast_event(&event);
                 let property_atom = property_event.atom();
                 property_atom == ATOM_FOCUS_CHANGE
