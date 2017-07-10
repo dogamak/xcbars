@@ -8,7 +8,7 @@ use futures::stream::Stream;
 const ATOM_FOCUS_CHANGE: xcb::AtomEnum = 334;
 
 /// This struct is used for creation and storing the refresh rate.
-pub struct WindowTitle {}
+pub struct WindowTitle;
 
 // Get the title of the window that currently is focused
 fn get_window_title() -> Result<String> {
