@@ -268,7 +268,7 @@ impl<'a> BarBuilder<'a> {
         // a stream carrying events from XCB.
         let stream = updates
             .unwrap_or_else(|| Box::new(::futures::stream::empty()))
-            .merge(XcbEventStream::new(window_conn));
+            .merge(XcbEventStream::new(window_conn, &handle)?);
 
         Ok(Bar {
             center_items,
