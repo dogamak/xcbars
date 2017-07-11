@@ -71,7 +71,7 @@ impl Component for WindowTitle {
     type Error = Error;
     type Stream = Box<Stream<Item = String, Error = Error>>;
 
-    fn stream(self, _: Handle) -> Self::Stream {
+    fn stream(self, handle: Handle) -> Self::Stream {
         let (conn, screen_num) = Connection::connect(None).unwrap();
 
         // Setup the event for the root screen
@@ -90,7 +90,8 @@ impl Component for WindowTitle {
         // Executes `get_window_title` every time window title event is received
         conn.flush();
         let active_window = self.active_window;
-        let stream = xcb_event_stream::XcbEventStream::new(conn)
+        let stream = xcb_event_stream::XcbEventStream::new(conn, &handle)
+            .unwrap()
             .filter(move |event| unsafe {
                 let property_event: &xcb::PropertyNotifyEvent = xcb::cast_event(&event);
                 let property_atom = property_event.atom();
