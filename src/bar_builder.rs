@@ -1,15 +1,12 @@
 use bar::{XcbContext, Bar, BarInfo};
 use std::rc::Rc;
 use error::{Result, ErrorKind};
-use std::error::Error as StdError;
-use bar_properties::BarProperties;
 use futures::Stream;
 use pango::FontDescription;
-use xcb_event_stream::XcbEventStream;
 use tokio_core::reactor::{Core, Handle};
 use component_context::ComponentContext;
-use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentStateWrapperExt, ComponentState};
-use xcb::{self, Visualtype, Screen, Window, Rectangle, Connection};
+use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentState};
+use xcb::{randr, self, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
 /// Defines a color by it's red, green and blue components.
@@ -73,6 +70,7 @@ pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Erro
 
 /// Struct implementing the builder pattern for `Bar`.
 pub struct BarBuilder {
+    output: String,
     geometry: Geometry,
     bg_color: Color,
     fg_color: Color,
@@ -82,8 +80,9 @@ pub struct BarBuilder {
 
 impl BarBuilder {
     /// Create a new `BarBuilder` with default properties.
-    pub fn new() -> BarBuilder {
+    pub fn new<T: Into<String>>(output: T) -> BarBuilder {
         BarBuilder {
+            output: output.into(),
             geometry: Default::default(),
             bg_color: Color::new(1., 1., 1.),
             fg_color: Color::new(0., 0., 0.),
@@ -162,7 +161,7 @@ impl BarBuilder {
             let setup = conn.get_setup();
             let screen = setup.roots().next().unwrap();
 
-            geometry = calculate_geometry(&screen, &self.geometry);
+            geometry = calculate_geometry(&screen, &self.geometry, &self.output, &conn)?;
             window = create_window(&conn, &screen, &geometry, self.bg_color.as_u32())?;
             visualtype = find_visualtype(&screen).unwrap();
             
@@ -240,12 +239,20 @@ fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
 
 /// Calculates the position and size of the bar on
 /// screen given the Geometry struct and screen dimensions.
-fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle {
-    let screen_w = screen.width_in_pixels();
-    let screen_h = screen.height_in_pixels();
+fn calculate_geometry<'s>(
+    screen: &Screen<'s>,
+    geometry: &Geometry,
+    output: &str,
+    conn: &Connection,
+) -> Result<Rectangle> {
+    let screen_info = get_screen_info(screen, conn, output)?;
+    let screen_w = screen_info.width();
+    let screen_h = screen_info.height();
+    let x_offset = screen_info.x();
+    let y_offset = screen_info.y();
 
     match geometry {
-        &Geometry::Absolute(ref rect) => rect.clone(),
+        &Geometry::Absolute(ref rect) => Ok(rect.clone()),
         &Geometry::Relative {
             ref position,
             height: bar_height,
@@ -259,22 +266,70 @@ fn calculate_geometry<'s>(screen: &Screen<'s>, geometry: &Geometry) -> Rectangle
 
             match *position {
                 Position::Top => {
-                    x = padding_x as i16;
-                    y = padding_y as i16;
+                    x = x_offset + padding_x as i16;
+                    y = y_offset + padding_y as i16;
                     width = screen_w - 2 * padding_x;
                     height = bar_height;
                 }
                 Position::Bottom => {
-                    x = padding_x as i16;
-                    y = (screen_h - bar_height - padding_y) as i16;
+                    x = x_offset + padding_x as i16;
+                    y = y_offset + (screen_h - bar_height - padding_y) as i16;
                     width = screen_w - 2 * padding_x;
                     height = bar_height;
                 }
             };
 
-            Rectangle::new(x, y, width, height)
+            Ok(Rectangle::new(x, y, width, height))
         }
     }
+}
+
+// Get informatio about specified output
+fn get_screen_info<'s>(
+    screen: &Screen<'s>,
+    conn: &Connection,
+    query_output_name: &str,
+) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    // Load screen resources of the root window
+    // Return result on error
+    let res_cookie = randr::get_screen_resources(conn, screen.root());
+    let res_reply = res_cookie
+        .get_reply()
+        .map_err(|_| "Unable to get screen resources")?;
+
+    // Get all crtcs from the reply
+    let crtcs = res_reply.crtcs();
+
+    for crtc in crtcs {
+        // Get info about crtc
+        let crtc_info_cookie = randr::get_crtc_info(conn, *crtc, 0);
+        let crtc_info_reply = crtc_info_cookie.get_reply();
+
+        if let Ok(reply) = crtc_info_reply {
+            // Skip this crtc if it has no width or output
+            if reply.width() == 0 || reply.num_outputs() == 0 {
+                continue;
+            }
+
+            // Get info of crtc's first output for output name
+            let output = reply.outputs()[0];
+            let output_info_cookie = randr::get_output_info(conn, output, 0);
+            let output_info_reply = output_info_cookie.get_reply();
+
+            // Get the name of the first output
+            let mut output_name = String::new();
+            if let Ok(output_info_reply) = output_info_reply {
+                output_name = String::from_utf8_lossy(output_info_reply.name()).into();
+            }
+
+            // If the output name is the requested name, return the dimensions
+            if output_name == query_output_name {
+                return Ok(reply);
+            }
+        }
+    }
+    let error_msg = ["Unable to find output ", query_output_name].concat();
+    Err(error_msg.into())
 }
 
 /// Convinience macro for setting EWHM properites.

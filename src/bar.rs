@@ -1,11 +1,8 @@
 use bar_builder::Color;
 use std::rc::Rc;
-use xcb::{self, Visualtype, Setup, Screen, Connection, Rectangle, Window, Pixmap};
-use futures::stream::{Merge, MergedItem};
-use futures::{Poll, Async, Future, Stream};
-use xcb_event_stream::XcbEventStream;
+use xcb::{self, Visualtype, Screen, Connection, Rectangle, Window, Pixmap};
+use futures::{Poll, Async, Future};
 use error::*;
-use std::error::Error as StdError;
 use error::Error;
 use pango::FontDescription;
 use component::{Slot, ComponentStateWrapperExt};
@@ -214,7 +211,7 @@ impl Bar {
     /// redraw every component on the right of it. If the item has shrunk
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let pos = 0;
+        let mut pos = 0;
         let left_item_count = self.slot_items_mut(Slot::Left).len();
 
         for n in 0..left_item_count {
@@ -228,6 +225,7 @@ impl Bar {
                 width = state.get_preferred_width();
 
                 if n < index {
+                    pos += width;
                     continue;
                 }
 
@@ -260,6 +258,8 @@ impl Bar {
             if !size_changed {
                 break;
             }
+
+            pos += width;
         }
 
         Ok(())
