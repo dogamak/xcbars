@@ -305,11 +305,16 @@ impl Future for Bar {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(), Error> {
+        println!("Poll Bar");
         let mut updated = vec![];
+        let mut not_ready = false;
         
         for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
-            match state.poll() {
+            let result = state.poll();
+            println!("{:?}", result);
+            match result {
                 Ok(Async::Ready(Some(()))) => updated.push(index),
+                Ok(Async::NotReady) => not_ready = true,
                 Err(e) => return Err(e),
                 _ => continue,
             }
@@ -339,6 +344,12 @@ impl Future for Bar {
             self.handle_redraw(index, width_changed)?;
         }
 
-        Ok(Async::NotReady)
+        if not_ready {
+            Ok(Async::NotReady)
+        } else {
+            let result = self.poll();
+            println!("Again: {:?}", result);
+            result
+        }
     }
 }
