@@ -97,7 +97,9 @@ impl Component for WindowTitle {
                 let property_atom = property_event.atom();
                 property_atom == active_window
             })
-            .and_then(move |_| self.get_window_title());
+            .and_then(move |_| {
+                self.get_window_title().or_else(|_| Ok(String::new()))
+            });
 
         Box::new(stream)
     }
