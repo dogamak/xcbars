@@ -57,7 +57,6 @@ impl<S> Stream for ComponentStateWrapper<S>
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<()>, Error> {
-        println!("Poll Component");
         let update = self.stream.poll();
 
         match update {

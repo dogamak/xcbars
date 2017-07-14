@@ -66,7 +66,6 @@ impl Stream for PipeStream {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Option<String>, Error> {
-        println!("poll");
         let mut line_received = None;
         let mut command_done = false;
         let mut sleep_done = false;
@@ -95,12 +94,9 @@ impl Stream for PipeStream {
             },
         }
 
-        println!("{:?} {:?}", line_received, sleep_done);
-
         if command_done {
             if let Some(duration) = self.config.refresh_rate {
                 self.state = PipeStreamState::Sleep(self.timer.sleep(duration));
-                println!("self.state = Sleep");
                 return self.poll();
             } else {
                 return Ok(Async::Ready(None));
@@ -110,7 +106,6 @@ impl Stream for PipeStream {
         if let Some(line) = line_received {
             if let Some(duration) = self.config.refresh_rate {
                 self.state = PipeStreamState::Sleep(self.timer.sleep(duration));
-                println!("self.state = Sleep");
             }
 
             return Ok(Async::Ready(Some(line)));
@@ -118,7 +113,6 @@ impl Stream for PipeStream {
 
         if sleep_done {
             self.state = PipeStreamState::Command(command_lines(&self.config, &self.handle));
-            println!("self.state = Command");
             return self.poll();
         }
 
