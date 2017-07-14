@@ -162,7 +162,7 @@ impl Bar {
                 width = state.get_preferred_width();
                 pos -= width;
 
-                if n < right_item_count - index - 1 {
+                if n < right_item_count - index {
                     continue;
                 }
 
