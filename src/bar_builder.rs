@@ -5,7 +5,7 @@ use futures::Stream;
 use pango::FontDescription;
 use tokio_core::reactor::{Core, Handle};
 use component_context::ComponentContext;
-use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentState};
+use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentContainer, ComponentContainerExt, ComponentState};
 use xcb::{randr, self, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
@@ -75,7 +75,7 @@ pub struct BarBuilder {
     bg_color: Color,
     fg_color: Color,
     font_name: String,
-    items: Vec<(Slot, Box<ComponentConfigExt>)>,
+    items: Vec<(Slot, Box<ComponentContainerExt>)>,
 }
 
 impl BarBuilder {
@@ -104,7 +104,7 @@ impl BarBuilder {
         C: ComponentConfig + 'static,
         <<C as ComponentConfig>::State as ComponentState>::Error: Send,
     {
-        self.items.push((slot, Box::new(component)));
+        self.items.push((slot, Box::new(ComponentContainer::new(component))));
         self
     }
 
@@ -137,7 +137,7 @@ impl BarBuilder {
     fn into_components_and_info(
         self,
         area: &Rectangle,
-    ) -> (Vec<(Slot, Box<ComponentConfigExt>)>, BarInfo) {
+    ) -> (Vec<(Slot, Box<ComponentContainerExt>)>, BarInfo) {
         let props = BarInfo {
             fg: self.fg_color,
             bg: self.bg_color,
@@ -199,7 +199,7 @@ impl BarBuilder {
         // updates.  The sream also carries information about the
         // source component such as the id, slot and the index of
         // the component in the said slot.
-        for (slot, config) in items.into_iter() {
+        for (slot, mut config) in items.into_iter() {
             match slot {
                 Slot::Left => left_component_count += 1,
                 Slot::Center => center_component_count += 1,

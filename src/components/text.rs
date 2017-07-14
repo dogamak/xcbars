@@ -1,17 +1,22 @@
 use string_component::StringComponent;
 use futures::stream::{once, Once};
+use bar::BarInfo;
 use tokio_core::reactor::Handle;
-use error::Error;
+use std::rc::Rc;
+use error::{Result, Error};
+use std::marker::PhantomData;
 
-pub struct Text {
-    pub text: String,
-}
+pub struct Text<'s>(pub &'s str);
 
-impl StringComponent for Text {
+impl<'s> StringComponent for Text<'s> {
     type Error = Error;
     type Stream = Once<String, Error>;
 
-    fn into_stream(self: Box<Text>, _: &Handle) -> Self::Stream {
-        once(Ok(self.text))
+    fn create(
+        config: Text<'s>,
+        _: Rc<BarInfo>,
+        _: &Handle,
+    ) -> Result<(Self::Stream)> {
+        Ok(once(Ok(config.0.to_string())))
     }
 }

@@ -21,7 +21,7 @@ pub trait ComponentState: Sized {
     type Stream: Stream<Item=Self::Update, Error=Self::Error>;
 
     fn create(
-        config: Box<Self::Config>,
+        config: Self::Config,
         bar_info: Rc<BarInfo>,
         handle: &Handle,
     ) -> StdResult<(Self, Self::Stream), Self::Error>;
@@ -38,7 +38,7 @@ pub trait ComponentState: Sized {
 
 pub trait ComponentConfigExt {
     fn create(
-        self: Box<Self>,
+        self,
         bar_info: Rc<BarInfo>,
         handle: &Handle,
     ) -> Result<Box<ComponentStateWrapperExt>>;
@@ -104,7 +104,7 @@ impl<C> ComponentConfigExt for C
           <<C as ComponentConfig>::State as ComponentState>::Error: Send,
 {
     fn create(
-        self: Box<Self>,
+        self,
         bar_info: Rc<BarInfo>,
         handle: &Handle,
     ) -> Result<Box<ComponentStateWrapperExt>> {
@@ -115,6 +115,43 @@ impl<C> ComponentConfigExt for C
             state: state,
             stream: stream,
         }))
+    }
+}
+
+pub enum ComponentContainer<C: ComponentConfig> {
+    Config(C),
+    Created,
+}
+
+impl<C> ComponentContainer<C>
+    where C: ComponentConfig,
+{
+    pub fn new(config: C) -> ComponentContainer<C> {
+        ComponentContainer::Config(config)
+    }
+}
+
+pub trait ComponentContainerExt {
+    fn create(&mut self, bar: Rc<BarInfo>, handle: &Handle) -> Result<Box<ComponentStateWrapperExt>>;
+}
+
+impl<C> ComponentContainerExt for ComponentContainer<C>
+    where C: ComponentConfig,
+          C::State: 'static,
+          <C::State as ComponentState>::Error: Send + 'static,
+{
+    fn create(&mut self, bar: Rc<BarInfo>, handle: &Handle) -> Result<Box<ComponentStateWrapperExt>> {
+        let container = mem::replace(self, ComponentContainer::Created);
+        match container {
+            ComponentContainer::Created => Err("component already created".into()),
+            ComponentContainer::Config(config) => {
+                let (state, stream) = C::State::create(config, bar, handle).unwrap();
+                Ok(Box::new(ComponentStateWrapper {
+                    state: state,
+                    stream: stream,
+                }))
+            }
+        }
     }
 }
 

@@ -15,22 +15,26 @@ pub trait StringComponent: Sized {
     type Stream: Stream<Item=String, Error=Self::Error>;
     type Error: StdError;
     
-    fn into_stream(self: Box<Self>, handle: &Handle) -> Self::Stream;
+    fn create(
+        config: Self,
+        bar_info: Rc<BarInfo>,
+        handle: &Handle,
+    ) -> Result<Self::Stream, Self::Error>;
 }
 
-impl<C> ComponentConfig for C
-    where C: StringComponent,
-{
-    type State = StringComponentState<C>;
-}
-
-pub struct StringComponentState<C> {
-    config: PhantomData<C>,
-    state: String,
+pub struct StringComponentStateInfo<C> {
+    component: PhantomData<C>,
+    current: String,
     bar_info: Rc<BarInfo>,
 }
 
-impl<C> ComponentState for StringComponentState<C>
+impl<C> ComponentConfig for C
+    where C: StringComponent
+{
+    type State = StringComponentStateInfo<C>;
+}
+
+impl<C> ComponentState for StringComponentStateInfo<C>
     where C: StringComponent,
 {
     type Config = C;
@@ -39,22 +43,29 @@ impl<C> ComponentState for StringComponentState<C>
     type Stream = C::Stream;
 
     fn create(
-        config: Box<C>,
+        config: C,
         bar_info: Rc<BarInfo>,
         handle: &Handle,
-    ) -> Result<(Self, C::Stream), C::Error> {
-        let state = StringComponentState {
-            config: PhantomData,
-            state: String::new(),
+    ) -> Result<(Self, Self::Stream), Self::Error> {
+        let result = C::create(config, bar_info.clone(), handle);
+
+        let stream = match result {
+            Ok(x) => x,
+            Err(e) => return Err(e),
+        };
+
+        let state_info = StringComponentStateInfo {
+            component: PhantomData,
+            current: String::new(),
             bar_info: bar_info,
         };
-        let stream = C::into_stream(config, handle);
-        Ok((state, stream))
+
+        Ok((state_info, stream))
     }
 
     fn update(&mut self, update: String) -> Result<bool, Self::Error> {
-        if self.state != update {
-            self.state = update;
+        if self.current != update {
+            self.current = update;
             Ok(true)
         } else {
             Ok(false)
@@ -67,7 +78,7 @@ impl<C> ComponentState for StringComponentState<C>
         let layout = ctx.create_pango_layout();
 
         layout.set_font_description(Some(&self.bar_info.font));
-        layout.set_text(self.state.as_str(), self.state.len() as i32);
+        layout.set_text(self.current.as_str(), self.current.len() as i32);
         ctx.update_pango_layout(&layout);
 
         ctx.set_source_rgb(
