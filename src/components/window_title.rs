@@ -26,15 +26,13 @@ impl WindowTitle {
     // Get the title of the window that currently is focused
     fn get_window_title(&self) -> Result<String> {
         // Connect to Xorg
-        let (conn, screen_num) = Connection::connect(None)
-            .map_err(ErrorKind::XcbConnection)?;
+        let (conn, screen_num) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
 
         // Get the screen for accessing the root window later
         let setup = conn.get_setup();
-        let screen = setup
-            .roots()
-            .nth(screen_num as usize)
-            .ok_or("Unable to acquire screen.")?;
+        let screen = setup.roots().nth(screen_num as usize).ok_or(
+            "Unable to acquire screen.",
+        )?;
 
         // Get the currently active window
         let property_reply = xcb::get_property(
@@ -110,8 +108,7 @@ impl Component for WindowTitle {
     //
     // If there is a problem with X or the Atoms are not supported, this will fail.
     fn init(&mut self) -> Result<()> {
-        let (conn, _) = Connection::connect(None)
-            .map_err(ErrorKind::XcbConnection)?;
+        let (conn, _) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
 
         let active_window = xcb::intern_atom(&conn, true, "_NET_ACTIVE_WINDOW")
             .get_reply()?

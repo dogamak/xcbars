@@ -10,20 +10,28 @@ struct InnerStream(Connection);
 
 impl AsRawFd for InnerStream {
     fn as_raw_fd(&self) -> RawFd {
-        unsafe {
-            xcb::ffi::xcb_get_file_descriptor(self.0.get_raw_conn())
-        }
+        unsafe { xcb::ffi::xcb_get_file_descriptor(self.0.get_raw_conn()) }
     }
 }
 
 impl mio::Evented for InnerStream {
-    fn register(&self, poll: &mio::Poll, token: mio::Token,
-                interest: mio::Ready, opts: mio::PollOpt) -> io::Result<()> {
+    fn register(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         mio::unix::EventedFd(&self.as_raw_fd()).register(poll, token, interest, opts)
     }
 
-    fn reregister(&self, poll: &mio::Poll, token: mio::Token,
-                  interest: mio::Ready, opts: mio::PollOpt) -> io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         mio::unix::EventedFd(&self.as_raw_fd()).reregister(poll, token, interest, opts)
     }
 
@@ -42,7 +50,6 @@ impl XcbEventStream {
             io: PollEvented::new(InnerStream(conn), handle)?,
         })
     }
-
 }
 
 impl Stream for XcbEventStream {
@@ -59,7 +66,7 @@ impl Stream for XcbEventStream {
             None => {
                 self.io.need_read();
                 Ok(Async::NotReady)
-            },
+            }
         }
     }
 }

@@ -74,9 +74,9 @@ fn get_number_scale(number: u64, scale: Scale) -> (f64, u8) {
 }
 
 fn get_bytes(interface: &str, dir: Direction) -> ::std::io::Result<Option<u64>> {
-    let dev = ::procinfo::net::dev::dev()?
-        .into_iter()
-        .find(|dev| dev.interface == interface);
+    let dev = ::procinfo::net::dev::dev()?.into_iter().find(|dev| {
+        dev.interface == interface
+    });
 
     let dev = match dev {
         Some(dev) => dev,

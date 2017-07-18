@@ -35,12 +35,11 @@ where
     fn init(&mut self) -> StdResult<(), Error> {
         Component::init(self).chain_err(|| "Failed to initialize component")
     }
-    
+
     fn into_stream(self: Box<Self>, handle: Handle) -> Box<Stream<Item = String, Error = Error>> {
-        Box::new(
-            self.stream(handle)
-                .map_err(|e| Error::with_chain(e, "Component raised an error")),
-        )
+        Box::new(self.stream(handle).map_err(|e| {
+            Error::with_chain(e, "Component raised an error")
+        }))
     }
 }
 
