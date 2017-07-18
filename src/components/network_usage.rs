@@ -2,7 +2,9 @@ use futures::{Future, Stream};
 use std::sync::Arc;
 use tokio_timer::Timer;
 use tokio_core::reactor::Handle;
-use component::Component;
+use string_component::StringComponent;
+use bar::BarInfo;
+use std::rc::Rc;
 use error::{Error, Result};
 use std::time::Duration;
 use utils;
@@ -89,22 +91,20 @@ fn get_bytes(interface: &str, dir: Direction) -> ::std::io::Result<Option<u64>> 
     }
 }
 
-impl Component for NetworkUsage {
+impl StringComponent for NetworkUsage {
     type Error = Error;
     type Stream = Box<Stream<Item = String, Error = Error>>;
 
-    fn init(&mut self) -> Result<()> {
+    fn create(config: Self, _: Rc<BarInfo>, _: &Handle) -> Result<Self::Stream> {
+        // Check that the specified network interface exists.
         ::procinfo::net::dev::dev()?
             .into_iter()
-            .find(|dev| dev.interface == self.interface)
+            .find(|dev| dev.interface == config.interface)
             .ok_or(Error::from("No such network interface"))?;
-        Ok(())
-    }
+        
+        let conf = Arc::new(config);
 
-    fn stream(self, _: Handle) -> Self::Stream {
-        let conf = Arc::new(self);
-
-        utils::LoopFn::new(move || {
+        Ok(utils::LoopFn::new(move || {
             let timer = Timer::default();
             let conf = conf.clone();
 
@@ -131,6 +131,6 @@ impl Component for NetworkUsage {
                         })
                 })
         }).map_err(|_| "timer error".into())
-            .boxed()
+            .boxed())
     }
 }
