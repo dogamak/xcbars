@@ -94,7 +94,7 @@ impl Bar {
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
-        for item in self.center_items.iter() {
+        for item in &self.center_items {
             self.item_positions[item.get_id()].0 = pos;
             self.draw_item(item, pos)?;
             self.item_positions[item.get_id()].1 = item.get_content_width();
