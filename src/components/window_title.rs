@@ -30,9 +30,10 @@ impl WindowTitle {
 
         // Get the screen for accessing the root window later
         let setup = conn.get_setup();
-        let screen = setup.roots().nth(screen_num as usize).ok_or(
-            "Unable to acquire screen.",
-        )?;
+        let screen = setup
+            .roots()
+            .nth(screen_num as usize)
+            .ok_or("Unable to acquire screen.")?;
 
         // Get the currently active window
         let property_reply = xcb::get_property(

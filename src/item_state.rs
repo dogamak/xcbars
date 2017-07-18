@@ -96,8 +96,7 @@ impl ItemState {
 
             self.surface = Some(unsafe {
                 Surface::from_raw_full(cairo_sys::cairo_xcb_surface_create(
-                    (self.conn.get_raw_conn() as
-                         *mut cairo_sys::xcb_connection_t),
+                    (self.conn.get_raw_conn() as *mut cairo_sys::xcb_connection_t),
                     //self.get_screen().ptr as *mut cairo_sys::xcb_screen_t,
                     self.pixmap,
                     (&mut self.visualtype.base as *mut xcb::ffi::xcb_visualtype_t) as
