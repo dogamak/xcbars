@@ -6,10 +6,6 @@ env:
   - VERSION=stable COMMAND="cargo build"
   - VERSION=nightly COMMAND="cargo clippy -- -Dclippy"
   - VERSION=nightly COMMAND="cargo fmt -- --write-mode=diff"
-  - VERSION=nightly COMMAND="cargo build"
-  - VERSION=nightly COMMAND="cargo build --release"
-  - VERSION=nightly COMMAND="cargo test"
-  - VERSION=nightly COMMAND="cargo check"
 before_install:
   - docker pull undeadleech/xcbars-$VERSION
 script:
