@@ -18,7 +18,7 @@ cairo-sys-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["xcb"]
 error-chain = "*"
 futures = "*"
 pango = { git = "https://github.com/gtk-rs/pango.git" }
-pangocairo = { git = "https://github.com/razrfalcon/pangocairo-rs.git" }
+pangocairo = { git = "https://github.com/chrisduerr/pangocairo-rs.git" }
 procinfo = "^0.4.2"
 tokio-core = "*"
 tokio-io = "*"
