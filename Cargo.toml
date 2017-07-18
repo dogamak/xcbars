@@ -6,7 +6,6 @@ description = "A standalone bar library created with XCB, cairo and pango."
 repository = "https://github.com/dogamak/xcbars"
 documentation = "docs.rs/xcbars"
 license = "Apache-2.0"
-license-file = "LICENSE"
 readme = "README.md"
 
 [badges.tarvis-ci]
