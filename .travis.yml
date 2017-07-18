@@ -1,8 +1,12 @@
-language: rust
+language: generic
 dist: trusty
 services:
   - docker
+env:
+  - VERSION=stable COMMAND="cargo build"
+  - VERSION=nightly COMMAND="cargo clippy -- -Dclippy"
+  - VERSION=nightly COMMAND="cargo fmt -- --write-mode=diff"
 before_install:
-  - docker build -t dogamak/xcbars .
+  - docker pull undeadleech/xcbars-$VERSION
 script:
-  - docker run -v "$(pwd):/source" dogamak/xcbars cargo build
+  - docker run -v "$(pwd):/source" undeadleech/xcbars-$VERSION $COMMAND

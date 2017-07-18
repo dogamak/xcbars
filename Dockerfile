@@ -1,7 +1,8 @@
 FROM debian:stretch
 
 ENV USER root
-ENV RUST_VERSION=1.17.0
+ENV RUST_VERSION=nightly
+ENV PATH="${PATH}:/root/.cargo/bin"
 
 RUN apt-get update && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -26,7 +27,9 @@ RUN apt-get update && \
     /var/lib/apt/lists/* \
     /tmp/* \
     /var/tmp/* && \
-  mkdir /source
+  mkdir /source && \
+  cargo install clippy && \
+  cargo install rustfmt-nightly
 
 VOLUME ["/source"]
 WORKDIR /source
