@@ -52,12 +52,12 @@ impl Default for NetworkUsage {
 
 fn get_prefix(scale: Scale, power: u8) -> &'static str {
     match (scale, power) {
-        (Scale::Decimal, 0) => "B/s",
+        (Scale::Decimal, 0) |
+        (Scale::Binary, 0) => "B/s",
         (Scale::Decimal, 1) => "kb/s",
         (Scale::Decimal, 2) => "Mb/s",
         (Scale::Decimal, 3) => "Gb/s",
         (Scale::Decimal, 4) => "Tb/s",
-        (Scale::Binary, 0) => "B/s",
         (Scale::Binary, 1) => "KiB/s",
         (Scale::Binary, 2) => "MiB/s",
         (Scale::Binary, 3) => "GiB/s",
@@ -97,7 +97,7 @@ impl Component for NetworkUsage {
         ::procinfo::net::dev::dev()?
             .into_iter()
             .find(|dev| dev.interface == self.interface)
-            .ok_or(Error::from("No such network interface"))?;
+            .ok_or_else(|| Error::from("No such network interface"))?;
         Ok(())
     }
 

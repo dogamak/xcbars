@@ -67,7 +67,7 @@ impl ItemState {
     }
 
     #[inline]
-    fn get_screen<'s>(&'s self) -> Screen<'s> {
+    fn get_screen(&self) -> Screen {
         let setup = self.conn.get_setup();
         setup.roots().nth(self.screen_number).unwrap()
     }
