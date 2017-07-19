@@ -12,6 +12,7 @@ extern crate error_chain;
 extern crate pangocairo;
 extern crate procinfo;
 extern crate tokio_timer;
+extern crate time;
 
 #[macro_use]
 mod utils;
