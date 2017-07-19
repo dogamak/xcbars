@@ -37,9 +37,10 @@ where
     }
 
     fn into_stream(self: Box<Self>, handle: Handle) -> Box<Stream<Item = String, Error = Error>> {
-        Box::new(self.stream(handle).map_err(|e| {
-            Error::with_chain(e, "Component raised an error")
-        }))
+        Box::new(
+            self.stream(handle)
+                .map_err(|e| Error::with_chain(e, "Component raised an error")),
+        )
     }
 }
 
@@ -47,7 +48,9 @@ pub struct SubComponent(pub Box<ComponentCreator>);
 
 impl<'s> From<&'s str> for SubComponent {
     fn from(s: &'s str) -> SubComponent {
-        SubComponent(Box::new(Text { text: s.to_string() }))
+        SubComponent(Box::new(Text {
+            text: s.to_string(),
+        }))
     }
 }
 

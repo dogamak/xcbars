@@ -170,8 +170,8 @@ impl Bar {
                 let mut bg_end = pos + item.get_content_width();
 
                 if n == self.left_items.len() - 1 {
-                    let old_end = self.item_positions[item.get_id()].0 +
-                        self.item_positions[item.get_id()].1;
+                    let old_end =
+                        self.item_positions[item.get_id()].0 + self.item_positions[item.get_id()].1;
                     if bg_end < old_end {
                         bg_end = old_end;
                     }

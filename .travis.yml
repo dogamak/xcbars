@@ -4,6 +4,7 @@ services:
   - docker
 env:
   - VERSION=stable COMMAND="cargo build"
+  - VERSION=stable COMMAND="cargo test"
   - VERSION=nightly COMMAND="cargo clippy -- -Dclippy"
   - VERSION=nightly COMMAND="cargo fmt -- --write-mode=diff"
 before_install:
