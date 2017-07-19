@@ -32,9 +32,9 @@ impl Component for Counter {
             loop {
                 let tx = tx.clone();
                 remote.clone().spawn(move |_| {
-                    tx.send(format!("Count: {}", current))
-                        .map(|_| ())
-                        .map_err(|_| ())
+                    tx.send(format!("Count: {}", current)).map(|_| ()).map_err(
+                        |_| (),
+                    )
                 });
                 current += self.step;
                 sleep(Duration::from_secs(1));
@@ -51,7 +51,7 @@ fn main() {
         ..Default::default()
     };
 
-    BarBuilder::new("DVI-0")
+    BarBuilder::new()
         .geometry(Geometry::Relative {
             position: Position::Top,
             height: 20,

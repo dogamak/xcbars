@@ -14,6 +14,7 @@ repository = "dogamak/xcbars"
 
 [dependencies]
 cairo-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["xcb", "png"] }
+mio = "*"
 cairo-sys-rs = { git = "https://github.com/gtk-rs/cairo.git", features = ["xcb"] }
 error-chain = "*"
 futures = "*"

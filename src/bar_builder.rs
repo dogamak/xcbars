@@ -26,7 +26,7 @@ impl Color {
     /// Colors represented in this form are required by XCB.
     pub fn as_u32(&self) -> u32 {
         (((255. * self.red).round() as u32) << 16) + (((255. * self.green).round() as u32) << 8) +
-            (((255. * self.blue).round() as u32) << 0)
+            ((255. * self.blue).round() as u32)
     }
 }
 
@@ -67,27 +67,39 @@ impl Default for Geometry {
 }
 
 pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Error>>;
+type Items = Vec<(Slot, Box<ComponentContainerExt>)>;
 
 /// Struct implementing the builder pattern for `Bar`.
-pub struct BarBuilder {
-    output: String,
+pub struct BarBuilder<'a> {
+    output: Option<&'a str>,
+    window_title: String,
     geometry: Geometry,
     bg_color: Color,
     fg_color: Color,
     font_name: String,
-    items: Vec<(Slot, Box<ComponentContainerExt>)>,
+    items: Items,
+    inner_padding: u16,
 }
 
-impl BarBuilder {
+/// Implement default for `BarBuilder` because `new()` doesn't require arguments.
+impl<'a> Default for BarBuilder<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> BarBuilder<'a> {
     /// Create a new `BarBuilder` with default properties.
-    pub fn new<T: Into<String>>(output: T) -> BarBuilder {
+    pub fn new() -> BarBuilder<'a> {
         BarBuilder {
-            output: output.into(),
+            output: None,
+            window_title: String::from("xcbars"),
             geometry: Default::default(),
             bg_color: Color::new(1., 1., 1.),
             fg_color: Color::new(0., 0., 0.),
             items: vec![],
             font_name: String::new(),
+            inner_padding: 0,
         }
     }
 
@@ -108,9 +120,21 @@ impl BarBuilder {
         self
     }
 
+    /// Set the output you want the bar to be displayed on.
+    pub fn output(mut self, output: &'a str) -> Self {
+        self.output = Some(output);
+        self
+    }
+
     /// Set the bar's position and size.
     pub fn geometry(mut self, geometry: Geometry) -> Self {
         self.geometry = geometry;
+        self
+    }
+
+    /// Set the inner padding at the left and right side of the bar.
+    pub fn inner_padding(mut self, inner_padding: u16) -> Self {
+        self.inner_padding = inner_padding;
         self
     }
 
@@ -129,6 +153,12 @@ impl BarBuilder {
     /// Set the default background color.
     pub fn background(mut self, color: Color) -> Self {
         self.bg_color = color;
+        self
+    }
+
+    /// Set the title of the window.
+    pub fn window_title<T: Into<String>>(mut self, window_title: T) -> Self {
+        self.window_title = window_title.into();
         self
     }
 
@@ -162,7 +192,13 @@ impl BarBuilder {
             let screen = setup.roots().next().unwrap();
 
             geometry = calculate_geometry(&screen, &self.geometry, &self.output, &conn)?;
-            window = create_window(&conn, &screen, &geometry, self.bg_color.as_u32())?;
+            window = create_window(
+                &conn,
+                &screen,
+                &geometry,
+                self.bg_color.as_u32(),
+                &self.window_title,
+            )?;
             visualtype = find_visualtype(&screen).unwrap();
             
             // Create xcb graphics context for drawin te background
@@ -174,7 +210,7 @@ impl BarBuilder {
                 screen.root(),
                 &[
                     (xcb::GC_FOREGROUND, self.bg_color.as_u32()),
-                    (xcb::GC_GRAPHICS_EXPOSURES, 0)
+                    (xcb::GC_GRAPHICS_EXPOSURES, 0),
                 ]
             );
         }
@@ -190,6 +226,9 @@ impl BarBuilder {
         let mut left_component_count = 0;
         let mut center_component_count = 0;
         let mut right_component_count = 0;
+
+        // Store inner padding before consumption
+        let inner_padding = self.inner_padding;
 
         // Consumes self
         let (items, info) = self.into_components_and_info(&geometry);
@@ -221,13 +260,14 @@ impl BarBuilder {
             foreground,
             geometry,
             xcb_ctx,
+            inner_padding,
         })
     }
 }
 
 /// Finds a visual type matching the one of the screen provided.
 fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
-    'DEPTH: for depth in screen.allowed_depths() {
+    for depth in screen.allowed_depths() {
         for visual in depth.visuals() {
             if visual.visual_id() == screen.root_visual() {
                 return Some(visual);
@@ -242,7 +282,7 @@ fn find_visualtype<'s>(screen: &Screen<'s>) -> Option<Visualtype> {
 fn calculate_geometry<'s>(
     screen: &Screen<'s>,
     geometry: &Geometry,
-    output: &str,
+    output: &Option<&str>,
     conn: &Connection,
 ) -> Result<Rectangle> {
     let screen_info = get_screen_info(screen, conn, output)?;
@@ -251,9 +291,9 @@ fn calculate_geometry<'s>(
     let x_offset = screen_info.x();
     let y_offset = screen_info.y();
 
-    match geometry {
-        &Geometry::Absolute(ref rect) => Ok(rect.clone()),
-        &Geometry::Relative {
+    match *geometry {
+        Geometry::Absolute(ref rect) => Ok(*rect),
+        Geometry::Relative {
             ref position,
             height: bar_height,
             padding_x,
@@ -288,14 +328,19 @@ fn calculate_geometry<'s>(
 fn get_screen_info<'s>(
     screen: &Screen<'s>,
     conn: &Connection,
-    query_output_name: &str,
+    query_output_name: &Option<&str>,
 ) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    if query_output_name.is_none() {
+        return get_primary_screen_info(screen, conn);
+    }
+    let query_output_name = query_output_name.unwrap();
+
     // Load screen resources of the root window
     // Return result on error
     let res_cookie = randr::get_screen_resources(conn, screen.root());
-    let res_reply = res_cookie
-        .get_reply()
-        .map_err(|_| "Unable to get screen resources")?;
+    let res_reply = res_cookie.get_reply().map_err(
+        |_| "Unable to get screen resources",
+    )?;
 
     // Get all crtcs from the reply
     let crtcs = res_reply.crtcs();
@@ -332,13 +377,39 @@ fn get_screen_info<'s>(
     Err(error_msg.into())
 }
 
-/// Convinience macro for setting EWHM properites.
-macro_rules! set_ewhm_prop {
+/// Get information about the primary output
+fn get_primary_screen_info<'s>(
+    screen: &Screen<'s>,
+    conn: &Connection,
+) -> Result<xcb::Reply<xcb::ffi::randr::xcb_randr_get_crtc_info_reply_t>> {
+    // Load primary output
+    let output_cookie = randr::get_output_primary(conn, screen.root());
+    let output_reply = output_cookie.get_reply().map_err(
+        |_| "Unable to get primary output.",
+    )?;
+    let output = output_reply.output();
+
+    // Get crtc of primary output
+    let output_info_cookie = randr::get_output_info(conn, output, 0);
+    let output_info_reply = output_info_cookie.get_reply().map_err(
+        |_| "Unable to get info about primary output",
+    )?;
+    let crtc = output_info_reply.crtc();
+
+    // Get info of primary output's crtc
+    let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
+    Ok(crtc_info_cookie.get_reply().map_err(
+        |_| "Unable to get crtc from primary output",
+    )?)
+}
+
+/// Convinience macro for setting EWMH properites.
+macro_rules! set_ewmh_prop {
     ($conn:expr, $window:expr, $name:expr, @atom $value:expr) => {
         {
             let value_atom = xcb::intern_atom($conn, true, $value)
                 .get_reply().unwrap().atom();
-            set_ewhm_prop!($conn, $window, $name, &[value_atom]);
+            set_ewmh_prop!($conn, $window, $name, &[value_atom]);
         }
     };
     ($conn:expr, $window:expr, $name:expr, $data:expr) => {
@@ -363,11 +434,12 @@ fn create_window<'s>(
     screen: &Screen<'s>,
     geometry: &Rectangle,
     background: u32,
+    window_title: &str,
 ) -> Result<Window> {
     let window = conn.generate_id();
 
     xcb::create_window(
-        &conn,
+        conn,
         xcb::WINDOW_CLASS_COPY_FROM_PARENT as u8,
         window,
         screen.root(),
@@ -395,24 +467,27 @@ fn create_window<'s>(
     strut[8] = 5;
     strut[9] = 1915;
 
-    set_ewhm_prop!(&conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
-    set_ewhm_prop!(&conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
-    set_ewhm_prop!(&conn, window, "_NET_WM_DESKTOP", &[-1]);
-    set_ewhm_prop!(&conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
-    set_ewhm_prop!(&conn, window, "_NET_WM_STRUT", &strut[0..4]);
-    set_ewhm_prop!(
-        &conn,
+    set_ewmh_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
+    set_ewmh_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
+    set_ewmh_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
+    set_ewmh_prop!(conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
+    set_ewmh_prop!(conn, window, "_NET_WM_STRUT", &strut[0..4]);
+    xcb::change_property(
+        conn,
+        xcb::PROP_MODE_REPLACE as u8,
         window,
-        "_NET_WM_NAME",
-        "xcbars".chars().collect::<Vec<_>>().as_slice()
-    ); // TODO: Allow users to define custom window title for the bar.
+        xcb::ATOM_WM_NAME,
+        xcb::ATOM_STRING,
+        8,
+        window_title.as_bytes(),
+    );
 
     // Request the WM to manage our window.
-    xcb::map_window(&conn, window);
+    xcb::map_window(conn, window);
 
     // Some WMs (such as OpenBox) require this.
     xcb::configure_window(
-        &conn,
+        conn,
         window,
         &[
             (xcb::CONFIG_WINDOW_X as u16, geometry.x() as u32),

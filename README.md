@@ -1,4 +1,4 @@
-# xcbars
+# xcbars [![Build Status](https://travis-ci.org/dogamak/xcbars.svg?branch=master)](https://travis-ci.org/dogamak/xcbars)
 A bar library created with rust and xcb.
 
 ## Example

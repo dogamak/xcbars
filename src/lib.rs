@@ -1,4 +1,5 @@
 extern crate xcb;
+extern crate mio;
 extern crate pango;
 extern crate cairo;
 extern crate cairo_sys;

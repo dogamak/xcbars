@@ -42,6 +42,7 @@ pub struct Bar {
     pub right_component_count: usize,
     pub foreground: u32,
     pub geometry: Rectangle,
+    pub inner_padding: u16,
 }
 
 impl Bar {
@@ -148,7 +149,7 @@ impl Bar {
     /// Pretty much the same as `self.redraw_left` but with `left` replaced with `right`.
     /// The order in which the items are gone through is reversed.
     fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let mut pos = self.geometry.width();
+        let mut pos = self.geometry.width() - self.inner_padding;
         let right_item_count = self.slot_items_mut(Slot::Right).len();
 
         for n in 0..right_item_count {
@@ -211,7 +212,7 @@ impl Bar {
     /// redraw every component on the right of it. If the item has shrunk
     /// we must also repaint the exposed background.
     fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
-        let mut pos = 0;
+        let mut pos = self.inner_padding;
         let left_item_count = self.slot_items_mut(Slot::Left).len();
 
         for n in 0..left_item_count {

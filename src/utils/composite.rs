@@ -15,7 +15,7 @@ macro_rules! composite {
                 type Stream = CompositeComponentStream;
 
                 fn init(&mut self) -> Result<(), Error> {
-                    for component in self.components.iter_mut() {
+                    for component in &mut self.components {
                         component.0.init()?;
                     }
                     Ok(())
@@ -47,7 +47,7 @@ macro_rules! composite {
 
                 fn poll(&mut self) -> Poll<Option<String>, Error> {
                     let mut do_update = false;
-                    for stream in self.streams.iter_mut() {
+                    for stream in &mut self.streams {
                         match stream.poll() {
                             Ok(Async::Ready(Some((id, update)))) => {
                                 do_update = true;
