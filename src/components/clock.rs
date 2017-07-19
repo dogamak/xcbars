@@ -8,7 +8,8 @@ use time;
 
 /// A `Clock` that automatically determines the refresh rate.
 ///
-/// This uses the default [strftime](http://man7.org/linux/man-pages/man3/strftime.3.html) syntax for formatting.
+/// This uses the default [strftime](http://man7.org/linux/man-pages/man3/strftime.3.html)
+/// syntax for formatting.
 pub struct Clock {
     format: String,
     refresh_rate: Duration,
@@ -18,7 +19,7 @@ impl Default for Clock {
     /// Creates a `Clock` without any arguments.
     ///
     /// This uses `%T` as the default time format.
-    /// [Read more](https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default)
+    /// [Read more](https://doc.rust-lang.org/core/default/trait.Default.html#tymethod.default)
     fn default() -> Clock {
         Clock {
             format: "%T".into(),
