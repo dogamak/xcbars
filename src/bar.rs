@@ -71,14 +71,14 @@ impl Bar {
             Slot::Left => &self.components[..self.left_component_count],
             Slot::Center => {
                 &self.components[self.left_component_count..
-                                 self.left_component_count + self.center_component_count]
+                                     self.left_component_count + self.center_component_count]
             }
             Slot::Right => {
                 &self.components[self.left_component_count + self.center_component_count..]
             }
         }
     }
-    
+
     #[inline]
     fn slot_items_mut(&mut self, slot: Slot) -> &mut [ComponentInfo] {
         match slot {
