@@ -87,9 +87,9 @@ where
     }
 
     fn render(&mut self, surface: &mut Surface, width: u16, height: u16) -> Result<()> {
-        self.state.render(surface, width, height).map_err(|e| {
-            Error::with_chain(e, "failed to render a component")
-        })
+        self.state
+            .render(surface, width, height)
+            .map_err(|e| Error::with_chain(e, "failed to render a component"))
     }
 
     fn poll(&mut self) -> Poll<Option<()>, Error> {
@@ -98,9 +98,10 @@ where
 }
 
 impl<C> ComponentConfigExt for C
-    where C: ComponentConfig,
-          <C as ComponentConfig>::State: ComponentState + 'static,
-          <<C as ComponentConfig>::State as ComponentState>::Error: Send,
+where
+    C: ComponentConfig,
+    <C as ComponentConfig>::State: ComponentState + 'static,
+    <<C as ComponentConfig>::State as ComponentState>::Error: Send,
 {
     fn create(
         self,
@@ -140,9 +141,10 @@ pub trait ComponentContainerExt {
 }
 
 impl<C> ComponentContainerExt for ComponentContainer<C>
-    where C: ComponentConfig,
-          C::State: 'static,
-          <C::State as ComponentState>::Error: Send + 'static,
+where
+    C: ComponentConfig,
+    C::State: 'static,
+    <C::State as ComponentState>::Error: Send + 'static,
 {
     fn create(
         &mut self,

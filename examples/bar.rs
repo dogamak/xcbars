@@ -36,9 +36,9 @@ impl StringComponent for Counter {
             loop {
                 let tx = tx.clone();
                 remote.clone().spawn(move |_| {
-                    tx.send(format!("Count: {}", current)).map(|_| ()).map_err(
-                        |_| (),
-                    )
+                    tx.send(format!("Count: {}", current))
+                        .map(|_| ())
+                        .map_err(|_| ())
                 });
                 current += config.step;
                 sleep(Duration::from_secs(1));

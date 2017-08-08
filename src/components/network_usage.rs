@@ -54,8 +54,7 @@ impl Default for NetworkUsage {
 
 fn get_prefix(scale: Scale, power: u8) -> &'static str {
     match (scale, power) {
-        (Scale::Decimal, 0) |
-        (Scale::Binary, 0) => "B/s",
+        (Scale::Decimal, 0) | (Scale::Binary, 0) => "B/s",
         (Scale::Decimal, 1) => "kb/s",
         (Scale::Decimal, 2) => "Mb/s",
         (Scale::Decimal, 3) => "Gb/s",
@@ -76,9 +75,9 @@ fn get_number_scale(number: u64, scale: Scale) -> (f64, u8) {
 }
 
 fn get_bytes(interface: &str, dir: Direction) -> ::std::io::Result<Option<u64>> {
-    let dev = ::procinfo::net::dev::dev()?.into_iter().find(|dev| {
-        dev.interface == interface
-    });
+    let dev = ::procinfo::net::dev::dev()?
+        .into_iter()
+        .find(|dev| dev.interface == interface);
 
     let dev = match dev {
         Some(dev) => dev,

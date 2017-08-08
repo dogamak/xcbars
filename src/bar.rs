@@ -146,8 +146,8 @@ impl Bar {
             let pixmap;
             let width;
             {
-                let &mut (ref mut context, ref state) = &mut self.components
-                    [self.left_component_count + n];
+                let &mut (ref mut context, ref state) =
+                    &mut self.components[self.left_component_count + n];
                 if !context.is_ready() {
                     continue;
                 }
@@ -175,8 +175,8 @@ impl Bar {
             let width;
 
             {
-                let &mut (ref mut context, ref state) = &mut self.slot_items_mut(Slot::Right)
-                    [right_item_count - n - 1];
+                let &mut (ref mut context, ref state) =
+                    &mut self.slot_items_mut(Slot::Right)[right_item_count - n - 1];
 
                 width = state.get_preferred_width();
                 pos -= width;
@@ -358,11 +358,8 @@ impl Future for Bar {
 
                     println!("Updating width of {}", index);
                     context.update_width(width)?;
-                    state.render(
-                        context.surface().unwrap(),
-                        width,
-                        self.geometry.height(),
-                    )?;
+                    state
+                        .render(context.surface().unwrap(), width, self.geometry.height())?;
                 }
 
                 let slot_offset;
