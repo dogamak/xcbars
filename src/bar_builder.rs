@@ -403,8 +403,8 @@ fn get_primary_screen_info<'s>(
     // Get info of primary output's crtc
     let crtc_info_cookie = randr::get_crtc_info(conn, crtc, 0);
     Ok(crtc_info_cookie
-       .get_reply()
-       .map_err(|_| "Unable to get crtc from primary output")?)
+        .get_reply()
+        .map_err(|_| "Unable to get crtc from primary output")?)
 }
 
 /// Convinience macro for setting EWMH properites.
