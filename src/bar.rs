@@ -135,6 +135,10 @@ impl Bar {
             let width;
             {
                 let &mut (ref mut context, ref state) = &mut self.components[self.left_component_count + n];
+                if !context.is_ready() {
+                    continue;
+                }
+                
                 width = state.get_preferred_width();
                 context.position = Some(pos);
                 pixmap = context.pixmap().unwrap();

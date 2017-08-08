@@ -32,6 +32,11 @@ impl ComponentContext {
     }
 
     #[inline]
+    pub fn is_ready(&self) -> bool {
+        self.graphical_context.is_some()
+    }
+    
+    #[inline]
     pub fn width(&self) -> Option<u16> {
         match self.graphical_context {
             Some(ref gctx) => Some(gctx.width),
