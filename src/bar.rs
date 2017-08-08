@@ -20,7 +20,7 @@ pub struct XcbContext {
 
 impl XcbContext {
     #[inline]
-    pub fn screen<'s>(&'s self) -> Screen<'s> {
+    pub fn screen(&self) -> Screen {
         self.conn
             .get_setup()
             .roots()

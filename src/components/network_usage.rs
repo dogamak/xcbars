@@ -100,7 +100,7 @@ impl StringComponent for NetworkUsage {
         ::procinfo::net::dev::dev()?
             .into_iter()
             .find(|dev| dev.interface == config.interface)
-            .ok_or(Error::from("No such network interface"))?;
+            .ok_or_else(|| Error::from("No such network interface"))?;
 
         let conf = Arc::new(config);
 
