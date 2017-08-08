@@ -196,7 +196,7 @@ impl<'a> BarBuilder<'a> {
                 &screen,
                 &geometry,
                 self.bg_color.as_u32(),
-                &self.window_title,
+                self.window_title.as_bytes(),
             )?;
             visualtype = find_visualtype(&screen).unwrap();
 
@@ -407,26 +407,32 @@ fn get_primary_screen_info<'s>(
         .map_err(|_| "Unable to get crtc from primary output")?)
 }
 
-/// Convinience macro for setting EWMH properites.
-macro_rules! set_ewmh_prop {
+/// Convinience macro for setting window properites.
+macro_rules! set_prop {
     ($conn:expr, $window:expr, $name:expr, @atom $value:expr) => {
         {
-            let value_atom = xcb::intern_atom($conn, true, $value)
+            let atom_atom = xcb::intern_atom($conn, true, $value)
                 .get_reply().unwrap().atom();
-            set_ewmh_prop!($conn, $window, $name, &[value_atom]);
+            set_prop!($conn, $window, $name, &[atom_atom], "ATOM", 32);
         }
     };
     ($conn:expr, $window:expr, $name:expr, $data:expr) => {
         {
-            let type_atom = xcb::intern_atom($conn, true, $name)
+            set_prop!($conn, $window, $name, $data, "CARDINAL", 32);
+        }
+    };
+    ($conn:expr, $window:expr, $name:expr, $data:expr, $type:expr, $size:expr) => {
+        {
+            let type_atom = xcb::intern_atom($conn, true, $type).get_reply().unwrap().atom();
+            let property = xcb::intern_atom($conn, true, $name)
                 .get_reply().unwrap().atom();
             xcb::change_property(
                 $conn,
                 xcb::PROP_MODE_REPLACE as u8,
                 $window,
+                property,
                 type_atom,
-                xcb::ATOM_ATOM,
-                32,
+                $size,
                 $data);
         }
     };
@@ -438,7 +444,7 @@ fn create_window<'s>(
     screen: &Screen<'s>,
     geometry: &Rectangle,
     background: u32,
-    window_title: &str,
+    window_title: &[u8],
 ) -> Result<Window> {
     let window = conn.generate_id();
 
@@ -471,20 +477,13 @@ fn create_window<'s>(
     strut[8] = 5;
     strut[9] = 1915;
 
-    set_ewmh_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
-    set_ewmh_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
-    set_ewmh_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
-    set_ewmh_prop!(conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
-    set_ewmh_prop!(conn, window, "_NET_WM_STRUT", &strut[0..4]);
-    xcb::change_property(
-        conn,
-        xcb::PROP_MODE_REPLACE as u8,
-        window,
-        xcb::ATOM_WM_NAME,
-        xcb::ATOM_STRING,
-        8,
-        window_title.as_bytes(),
-    );
+    set_prop!(conn, window, "_NET_WM_WINDOW_TYPE", @atom "_NET_WM_WINDOW_TYPE_DOCK");
+    set_prop!(conn, window, "_NET_WM_STATE", @atom "_NET_WM_STATE_STICKY");
+    set_prop!(conn, window, "_NET_WM_DESKTOP", &[-1]);
+    set_prop!(conn, window, "_NET_WM_STRUT_PARTIAL", strut.as_slice());
+    set_prop!(conn, window, "_NET_WM_STRUT", &strut[0..4]);
+    set_prop!(conn, window, "_NET_WM_NAME", window_title, "UTF8_STRING", 8);
+    set_prop!(conn, window, "WM_NAME", window_title, "STRING", 8);
 
     // Request the WM to manage our window.
     xcb::map_window(conn, window);

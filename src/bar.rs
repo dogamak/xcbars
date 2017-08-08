@@ -66,6 +66,20 @@ impl Bar {
     }
 
     #[inline]
+    fn slot_items(&self, slot: Slot) -> &[ComponentInfo] {
+        match slot {
+            Slot::Left => &self.components[..self.left_component_count],
+            Slot::Center => {
+                &self.components[self.left_component_count..
+                                 self.left_component_count + self.center_component_count]
+            }
+            Slot::Right => {
+                &self.components[self.left_component_count + self.center_component_count..]
+            }
+        }
+    }
+    
+    #[inline]
     fn slot_items_mut(&mut self, slot: Slot) -> &mut [ComponentInfo] {
         match slot {
             Slot::Left => &mut self.components[..self.left_component_count],
@@ -135,10 +149,26 @@ impl Bar {
     /// Unforunately centering means that all components
     /// must be redrawn if even one of them changes size.
     fn redraw_center(&mut self) -> Result<()> {
-        let width_all: u16 = self.slot_items_mut(Slot::Center)
+        // Get future width of all center components
+        let width_all: u16 = self.slot_items(Slot::Center)
             .iter()
             .map(|item| item.0.width().unwrap_or(0))
             .sum();
+
+        // Draw blank background to prevent leftovers after shrinkage
+        // Only does this when component width has shrunk
+        let old_width_all: u16 = self.slot_items(Slot::Center)
+            .iter()
+            .filter_map(|&(ref ctx, _)| ctx.width())
+            .sum();
+
+        if width_all < old_width_all {
+            if let Some(&(ref ctx, _)) = self.slot_items(Slot::Center).first() {
+                if let Some(old_start) = ctx.position {
+                    self.paint_bg(old_start, old_start + old_width_all)?;
+                }
+            }
+        }
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
