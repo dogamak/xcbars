@@ -165,6 +165,7 @@ impl<'a> BarBuilder<'a> {
 
     /// Consumes and splits self into `self.items` and `BarProperties` struct,
     /// containing everything else relevant.
+    #[allow(type_complexity)]
     fn into_components_and_info(
         self,
         _: &Rectangle,
@@ -179,9 +180,7 @@ impl<'a> BarBuilder<'a> {
 
     /// Builds and returns the bar.
     pub fn build(self, handle: Handle) -> Result<Bar> {
-        let (conn, _) = Connection::connect(None).map_err(
-            |e| ErrorKind::XcbConnection(e),
-        )?;
+        let (conn, _) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
 
         let geometry;
         let window;
@@ -239,7 +238,7 @@ impl<'a> BarBuilder<'a> {
         // updates.  The sream also carries information about the
         // source component such as the id, slot and the index of
         // the component in the said slot.
-        for (slot, mut config) in items.into_iter() {
+        for (slot, mut config) in items {
             let context = ComponentContext::new(xcb_ctx.clone(), geometry.height());
             let state = config.create(info.clone(), &handle)?;
 

@@ -43,14 +43,14 @@ fn command_lines(config: &Pipe, handle: &Handle) -> Lines<BufReader<ChildStdout>
     let mut cmd = Command::new(config.command.as_str());
     cmd.args(config.args.as_slice());
     cmd.stdin(Stdio::inherit()).stdout(Stdio::piped());
-    let mut child = cmd.spawn_async(&handle).unwrap();
+    let mut child = cmd.spawn_async(handle).unwrap();
     let stdout = child.stdout().take().unwrap();
     handle.spawn(child.map(|_| ()).map_err(|_| ()));
     ::tokio_io::io::lines(BufReader::new(stdout))
 }
 
 impl PipeStream {
-    fn new<'a>(config: Pipe, handle: Handle) -> PipeStream {
+    fn new(config: Pipe, handle: Handle) -> PipeStream {
         PipeStream {
             state: PipeStreamState::Command(command_lines(&config, &handle)),
             handle: handle,
