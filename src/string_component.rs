@@ -2,7 +2,7 @@ use futures::Stream;
 use std::rc::Rc;
 use bar::BarInfo;
 use cairo::Surface;
-use pango::{self, LayoutExt};
+use pango::{self, Layout, LayoutExt, FontMapExt};
 use pangocairo::CairoContextExt;
 use cairo::Context;
 use tokio_core::reactor::Handle;
@@ -10,6 +10,7 @@ use component::{ComponentConfig, ComponentState};
 use error::Error;
 use std::error::Error as StdError;
 use std::marker::PhantomData;
+use pangocairo::FontMap;
 
 pub trait StringComponent: Sized {
     type Stream: Stream<Item=String, Error=Self::Error>;
@@ -32,6 +33,13 @@ impl<C> ComponentConfig for C
     where C: StringComponent
 {
     type State = StringComponentStateInfo<C>;
+}
+
+impl<C> StringComponentStateInfo<C> {
+    fn setup_layout(&self, layout: &Layout) {
+        layout.set_font_description(Some(&self.bar_info.font));
+        layout.set_text(self.current.as_str(), self.current.len() as i32);
+    }
 }
 
 impl<C> ComponentState for StringComponentStateInfo<C>
@@ -76,9 +84,7 @@ impl<C> ComponentState for StringComponentStateInfo<C>
         let ctx = Context::new(surface);
 
         let layout = ctx.create_pango_layout();
-
-        layout.set_font_description(Some(&self.bar_info.font));
-        layout.set_text(self.current.as_str(), self.current.len() as i32);
+        self.setup_layout(&layout);
         ctx.update_pango_layout(&layout);
 
         ctx.set_source_rgb(
@@ -105,6 +111,11 @@ impl<C> ComponentState for StringComponentStateInfo<C>
     }
 
     fn get_preferred_width(&self) -> u16 {
-        100
+        let font_map = FontMap::new();
+        let ctx = font_map.create_context().unwrap();
+        let layout = Layout::new(&ctx);
+        self.setup_layout(&layout);
+
+        layout.get_pixel_size().0 as u16
     }
 }
