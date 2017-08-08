@@ -46,13 +46,13 @@ pub struct Bar {
 }
 
 impl Bar {
-    fn handle_redraw(&mut self, index: usize, width_changed: bool) -> Result<()> {
+    fn handle_redraw(&mut self, index: usize, slot_index: usize, width_changed: bool) -> Result<()> {
         if index < self.left_component_count {
-            self.redraw_left(width_changed, index)
+            self.redraw_left(width_changed, index, slot_index)
         } else if index < self.left_component_count + self.center_component_count {
             self.redraw_center()
         } else {
-            self.redraw_right(width_changed, index)
+            self.redraw_right(width_changed, index, slot_index)
         }
     }
 
@@ -152,7 +152,7 @@ impl Bar {
 
     /// Pretty much the same as `self.redraw_left` but with `left` replaced with `right`.
     /// The order in which the items are gone through is reversed.
-    fn redraw_right(&mut self, size_changed: bool, index: usize) -> Result<()> {
+    fn redraw_right(&mut self, size_changed: bool, index: usize, slot_index: usize) -> Result<()> {
         let mut pos = self.geometry.width() - self.inner_padding;
         let right_item_count = self.slot_items_mut(Slot::Right).len();
 
@@ -167,7 +167,7 @@ impl Bar {
                 width = state.get_preferred_width();
                 pos -= width;
 
-                if n < right_item_count - index {
+                if n < right_item_count - slot_index - 1 {
                     continue;
                 }
 
@@ -215,7 +215,8 @@ impl Bar {
     /// However if the component has changed it's size, we must also
     /// redraw every component on the right of it. If the item has shrunk
     /// we must also repaint the exposed background.
-    fn redraw_left(&mut self, size_changed: bool, index: usize) -> Result<()> {
+    fn redraw_left(&mut self, size_changed: bool, index: usize, slot_index: usize) -> Result<()> {
+        println!("Drawing {}", index);
         let mut pos = self.inner_padding;
         let left_item_count = self.slot_items_mut(Slot::Left).len();
 
@@ -229,7 +230,7 @@ impl Bar {
 
                 width = state.get_preferred_width();
 
-                if n < index {
+                if n < slot_index {
                     pos += width;
                     continue;
                 }
