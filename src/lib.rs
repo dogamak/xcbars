@@ -20,14 +20,14 @@ mod error;
 mod bar;
 mod bar_builder;
 mod bar_properties;
-mod xcb_event_stream;
+// mod xcb_event_stream;
 pub mod component;
 mod component_context;
 mod string_component;
 
 pub use bar_builder::{Color, BarBuilder, Geometry, Position};
 pub use bar_properties::BarProperties;
-pub use component::{Slot};
-pub use bar::Bar;
+pub use component::Slot;
+pub use bar::{Bar, BarInfo};
 pub use error::Error;
 pub use string_component::StringComponent;

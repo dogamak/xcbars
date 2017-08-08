@@ -7,15 +7,14 @@ use pangocairo::CairoContextExt;
 use cairo::Context;
 use tokio_core::reactor::Handle;
 use component::{ComponentConfig, ComponentState};
-use error::Error;
 use std::error::Error as StdError;
 use std::marker::PhantomData;
 use pangocairo::FontMap;
 
 pub trait StringComponent: Sized {
-    type Stream: Stream<Item=String, Error=Self::Error>;
+    type Stream: Stream<Item = String, Error = Self::Error>;
     type Error: StdError;
-    
+
     fn create(
         config: Self,
         bar_info: Rc<BarInfo>,
@@ -30,7 +29,8 @@ pub struct StringComponentStateInfo<C> {
 }
 
 impl<C> ComponentConfig for C
-    where C: StringComponent
+where
+    C: StringComponent,
 {
     type State = StringComponentStateInfo<C>;
 }
@@ -43,7 +43,8 @@ impl<C> StringComponentStateInfo<C> {
 }
 
 impl<C> ComponentState for StringComponentStateInfo<C>
-    where C: StringComponent,
+where
+    C: StringComponent,
 {
     type Config = C;
     type Error = C::Error;
@@ -80,7 +81,7 @@ impl<C> ComponentState for StringComponentStateInfo<C>
         }
     }
 
-    fn render(&self, surface: &mut Surface, width: u16, height: u16) -> Result<(), Self::Error> {
+    fn render(&self, surface: &mut Surface, _: u16, height: u16) -> Result<(), Self::Error> {
         let ctx = Context::new(surface);
 
         let layout = ctx.create_pango_layout();

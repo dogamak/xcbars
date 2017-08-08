@@ -1,9 +1,8 @@
-#[macro_use]
 extern crate xcbars;
 extern crate futures;
 extern crate tokio_core;
 
-use xcbars::{BarBuilder, Geometry, Color, Slot, Component, Error, Position};
+use xcbars::{BarBuilder, BarInfo, Geometry, Color, Slot, StringComponent, Error, Position};
 
 use xcbars::components::{Pipe, NetworkUsage};
 
@@ -12,23 +11,28 @@ use tokio_core::reactor::Handle;
 use std::thread::{spawn, sleep};
 use std::time::Duration;
 use futures::sync::mpsc::channel;
+use std::rc::Rc;
 
 struct Counter {
     start: i32,
     step: i32,
 }
 
-impl Component for Counter {
+impl StringComponent for Counter {
     type Error = Error;
     type Stream = Box<Stream<Item = String, Error = Error>>;
 
-    fn stream(self, handle: Handle) -> Box<Stream<Item = String, Error = Error>> {
+    fn create(
+        config: Self,
+        _: Rc<BarInfo>,
+        handle: &Handle,
+    ) -> Result<Box<Stream<Item = String, Error = Error>>, Error> {
         let (tx, rx) = channel(1);
 
         let remote = handle.remote().clone();
 
         spawn(move || {
-            let mut current = self.start;
+            let mut current = config.start;
             loop {
                 let tx = tx.clone();
                 remote.clone().spawn(move |_| {
@@ -36,12 +40,12 @@ impl Component for Counter {
                         |_| (),
                     )
                 });
-                current += self.step;
+                current += config.step;
                 sleep(Duration::from_secs(1));
             }
         });
 
-        Box::new(rx.map_err(|()| "channel error".into()))
+        Ok(Box::new(rx.map_err(|()| "channel error".into())))
     }
 }
 
@@ -76,7 +80,7 @@ fn main() {
                 refresh_rate: Some(Duration::from_secs(1)),
             },
         )
-        .add_component(Slot::Right, composite!("Down: ", down_speed))
+        .add_component(Slot::Right, down_speed)
         .run()
         .unwrap();
 }

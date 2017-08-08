@@ -101,14 +101,15 @@ impl StringComponent for NetworkUsage {
             .into_iter()
             .find(|dev| dev.interface == config.interface)
             .ok_or(Error::from("No such network interface"))?;
-        
+
         let conf = Arc::new(config);
 
-        Ok(utils::LoopFn::new(move || {
-            let timer = Timer::default();
-            let conf = conf.clone();
+        Ok(
+            utils::LoopFn::new(move || {
+                let timer = Timer::default();
+                let conf = conf.clone();
 
-            timer.sleep(conf.refresh_frequency)
+                timer.sleep(conf.refresh_frequency)
                 .and_then(move |()| {
                     let conf = conf.clone();
                     let conf2 = conf.clone();
@@ -130,7 +131,8 @@ impl StringComponent for NetworkUsage {
                             format!("{} {}", num, get_prefix(conf2.scale, power))
                         })
                 })
-        }).map_err(|_| "timer error".into())
-            .boxed())
+            }).map_err(|_| "timer error".into())
+                .boxed(),
+        )
     }
 }

@@ -1,12 +1,11 @@
 use bar::{XcbContext, Bar, BarInfo};
 use std::rc::Rc;
 use error::{Result, ErrorKind};
-use futures::Stream;
 use pango::FontDescription;
 use tokio_core::reactor::{Core, Handle};
 use component_context::ComponentContext;
-use component::{Slot, ComponentUpdate, ComponentConfig, ComponentConfigExt, ComponentContainer, ComponentContainerExt, ComponentState};
-use xcb::{randr, self, Visualtype, Screen, Window, Rectangle, Connection};
+use component::{Slot, ComponentConfig, ComponentContainer, ComponentContainerExt, ComponentState};
+use xcb::{self, randr, Visualtype, Screen, Window, Rectangle, Connection};
 
 #[derive(Clone)]
 /// Defines a color by it's red, green and blue components.
@@ -66,7 +65,6 @@ impl Default for Geometry {
     }
 }
 
-pub type UpdateStream = Box<Stream<Item = ComponentUpdate, Error = ::error::Error>>;
 type Items = Vec<(Slot, Box<ComponentContainerExt>)>;
 
 /// Struct implementing the builder pattern for `Bar`.
@@ -116,7 +114,10 @@ impl<'a> BarBuilder<'a> {
         C: ComponentConfig + 'static,
         <<C as ComponentConfig>::State as ComponentState>::Error: Send,
     {
-        self.items.push((slot, Box::new(ComponentContainer::new(component))));
+        self.items.push((
+            slot,
+            Box::new(ComponentContainer::new(component)),
+        ));
         self
     }
 
@@ -166,7 +167,7 @@ impl<'a> BarBuilder<'a> {
     /// containing everything else relevant.
     fn into_components_and_info(
         self,
-        area: &Rectangle,
+        _: &Rectangle,
     ) -> (Vec<(Slot, Box<ComponentContainerExt>)>, BarInfo) {
         let props = BarInfo {
             fg: self.fg_color,
@@ -178,8 +179,9 @@ impl<'a> BarBuilder<'a> {
 
     /// Builds and returns the bar.
     pub fn build(self, handle: Handle) -> Result<Bar> {
-        let (conn, _) = Connection::connect(None)
-            .map_err(|e| ErrorKind::XcbConnection(e))?;
+        let (conn, _) = Connection::connect(None).map_err(
+            |e| ErrorKind::XcbConnection(e),
+        )?;
 
         let geometry;
         let window;
@@ -200,7 +202,7 @@ impl<'a> BarBuilder<'a> {
                 &self.window_title,
             )?;
             visualtype = find_visualtype(&screen).unwrap();
-            
+
             // Create xcb graphics context for drawin te background
             try_xcb!(
                 xcb::create_gc_checked,
@@ -251,7 +253,7 @@ impl<'a> BarBuilder<'a> {
         let left_component_count = left_components.len();
         let center_component_count = center_components.len();
         let right_component_count = right_components.len();
-        
+
         let components = vec![left_components, center_components, right_components]
             .into_iter()
             .flat_map(|s| s.into_iter())

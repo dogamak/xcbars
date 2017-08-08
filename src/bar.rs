@@ -21,8 +21,12 @@ pub struct XcbContext {
 impl XcbContext {
     #[inline]
     pub fn screen<'s>(&'s self) -> Screen<'s> {
-        self.conn.get_setup().roots().nth(self.screen_index).unwrap()
-    } 
+        self.conn
+            .get_setup()
+            .roots()
+            .nth(self.screen_index)
+            .unwrap()
+    }
 }
 
 /// Struct for storing basic information about the Bar.
@@ -46,13 +50,18 @@ pub struct Bar {
 }
 
 impl Bar {
-    fn handle_redraw(&mut self, index: usize, slot_index: usize, width_changed: bool) -> Result<()> {
+    fn handle_redraw(
+        &mut self,
+        index: usize,
+        slot_index: usize,
+        width_changed: bool,
+    ) -> Result<()> {
         if index < self.left_component_count {
             self.redraw_left(width_changed, index, slot_index)
         } else if index < self.left_component_count + self.center_component_count {
             self.redraw_center()
         } else {
-            self.redraw_right(width_changed, index, slot_index)
+            self.redraw_right(width_changed, slot_index)
         }
     }
 
@@ -60,8 +69,13 @@ impl Bar {
     fn slot_items_mut(&mut self, slot: Slot) -> &mut [ComponentInfo] {
         match slot {
             Slot::Left => &mut self.components[..self.left_component_count],
-            Slot::Center => &mut self.components[self.left_component_count..self.left_component_count+self.center_component_count],
-            Slot::Right => &mut self.components[self.left_component_count+self.center_component_count..],
+            Slot::Center => {
+                &mut self.components[self.left_component_count..
+                                         self.left_component_count + self.center_component_count]
+            }
+            Slot::Right => {
+                &mut self.components[self.left_component_count + self.center_component_count..]
+            }
         }
     }
 
@@ -117,7 +131,6 @@ impl Bar {
 
         Box::new(future)
     } */
-
     /// Redraws components in the center slot.
     /// Unforunately centering means that all components
     /// must be redrawn if even one of them changes size.
@@ -129,16 +142,16 @@ impl Bar {
 
         let mut pos = (self.geometry.width()) / 2 - width_all / 2;
 
-        let mut center = self.slot_items_mut(Slot::Center).len();
         for n in 0..self.center_component_count {
             let pixmap;
             let width;
             {
-                let &mut (ref mut context, ref state) = &mut self.components[self.left_component_count + n];
+                let &mut (ref mut context, ref state) = &mut self.components
+                    [self.left_component_count + n];
                 if !context.is_ready() {
                     continue;
                 }
-                
+
                 width = state.get_preferred_width();
                 context.position = Some(pos);
                 pixmap = context.pixmap().unwrap();
@@ -152,7 +165,7 @@ impl Bar {
 
     /// Pretty much the same as `self.redraw_left` but with `left` replaced with `right`.
     /// The order in which the items are gone through is reversed.
-    fn redraw_right(&mut self, size_changed: bool, index: usize, slot_index: usize) -> Result<()> {
+    fn redraw_right(&mut self, size_changed: bool, slot_index: usize) -> Result<()> {
         let mut pos = self.geometry.width() - self.inner_padding;
         let right_item_count = self.slot_items_mut(Slot::Right).len();
 
@@ -162,7 +175,8 @@ impl Bar {
             let width;
 
             {
-                let &mut (ref mut context, ref state) = &mut self.slot_items_mut(Slot::Right)[right_item_count - n - 1];
+                let &mut (ref mut context, ref state) = &mut self.slot_items_mut(Slot::Right)
+                    [right_item_count - n - 1];
 
                 width = state.get_preferred_width();
                 pos -= width;
@@ -316,16 +330,16 @@ impl Future for Bar {
         while !not_ready {
             let mut updated = vec![];
 
-            for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
+            for (index, &mut (_, ref mut state)) in self.components.iter_mut().enumerate() {
                 let result = state.poll();
                 match result {
                     Ok(Async::Ready(Some(()))) => {
                         println!("Component {} updated!", index);
                         updated.push(index)
-                    },
-                    Ok(Async::NotReady) => not_ready = true, 
+                    }
+                    Ok(Async::NotReady) => not_ready = true,
                     Err(e) => return Err(e),
-                    _ => {},
+                    _ => {}
                 }
             }
 
@@ -333,8 +347,7 @@ impl Future for Bar {
                 let width_changed;
 
                 {
-                    let &mut (ref mut context, ref mut state) =
-                        &mut self.components[index];
+                    let &mut (ref mut context, ref mut state) = &mut self.components[index];
 
                     let width = state.get_preferred_width();
 
@@ -348,13 +361,16 @@ impl Future for Bar {
                     state.render(
                         context.surface().unwrap(),
                         width,
-                        self.geometry.height())?;
+                        self.geometry.height(),
+                    )?;
                 }
 
-                let mut slot_offset;
+                let slot_offset;
                 if index < self.left_component_count {
                     slot_offset = 0;
-                } else if index >= self.left_component_count && index < self.left_component_count + self.center_component_count {
+                } else if index >= self.left_component_count &&
+                           index < self.left_component_count + self.center_component_count
+                {
                     slot_offset = self.left_component_count;
                 } else {
                     slot_offset = self.left_component_count + self.center_component_count;

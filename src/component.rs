@@ -6,19 +6,18 @@ use std::error::Error as StdError;
 use std::result::Result as StdResult;
 use error::*;
 use bar::BarInfo;
-use std::any::Any;
 use std::rc::Rc;
 // use components::Text;
 
 pub trait ComponentConfig: Sized {
-    type State: ComponentState<Config=Self>;
+    type State: ComponentState<Config = Self>;
 }
 
 pub trait ComponentState: Sized {
     type Config: ComponentConfig;
     type Update;
     type Error: StdError;
-    type Stream: Stream<Item=Self::Update, Error=Self::Error>;
+    type Stream: Stream<Item = Self::Update, Error = Self::Error>;
 
     fn create(
         config: Self::Config,
@@ -28,11 +27,8 @@ pub trait ComponentState: Sized {
 
     fn get_preferred_width(&self) -> u16;
 
-    fn update(
-        &mut self,
-        update: <Self::Stream as Stream>::Item,
-    ) -> StdResult<bool, Self::Error>;
-    
+    fn update(&mut self, update: <Self::Stream as Stream>::Item) -> StdResult<bool, Self::Error>;
+
     fn render(&self, surface: &mut Surface, width: u16, height: u16) -> StdResult<(), Self::Error>;
 }
 
@@ -50,8 +46,9 @@ struct ComponentStateWrapper<S: ComponentState> {
 }
 
 impl<S> Stream for ComponentStateWrapper<S>
-    where S: ComponentState,
-          S::Error: Send + 'static,
+where
+    S: ComponentState,
+    S::Error: Send + 'static,
 {
     type Item = ();
     type Error = Error;
@@ -66,12 +63,12 @@ impl<S> Stream for ComponentStateWrapper<S>
                     Ok(false) => Ok(Async::NotReady),
                     Err(err) => Err(Error::with_chain(err, "failed to update component")),
                 }
-            },
+            }
             Err(err) => Err(Error::with_chain(err, "failed to check component updates")),
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
         };
-        
+
         result
     }
 }
@@ -83,16 +80,18 @@ pub trait ComponentStateWrapperExt {
 }
 
 impl<S> ComponentStateWrapperExt for ComponentStateWrapper<S>
-    where S: ComponentState,
-          S::Error: Send + 'static,
+where
+    S: ComponentState,
+    S::Error: Send + 'static,
 {
     fn get_preferred_width(&self) -> u16 {
         self.state.get_preferred_width()
     }
-    
+
     fn render(&mut self, surface: &mut Surface, width: u16, height: u16) -> Result<()> {
-        self.state.render(surface, width, height)
-            .map_err(|e| Error::with_chain(e, "failed to render a component"))
+        self.state.render(surface, width, height).map_err(|e| {
+            Error::with_chain(e, "failed to render a component")
+        })
     }
 
     fn poll(&mut self) -> Poll<Option<()>, Error> {
@@ -126,7 +125,8 @@ pub enum ComponentContainer<C: ComponentConfig> {
 }
 
 impl<C> ComponentContainer<C>
-    where C: ComponentConfig,
+where
+    C: ComponentConfig,
 {
     pub fn new(config: C) -> ComponentContainer<C> {
         ComponentContainer::Config(config)
@@ -134,7 +134,11 @@ impl<C> ComponentContainer<C>
 }
 
 pub trait ComponentContainerExt {
-    fn create(&mut self, bar: Rc<BarInfo>, handle: &Handle) -> Result<Box<ComponentStateWrapperExt>>;
+    fn create(
+        &mut self,
+        bar: Rc<BarInfo>,
+        handle: &Handle,
+    ) -> Result<Box<ComponentStateWrapperExt>>;
 }
 
 impl<C> ComponentContainerExt for ComponentContainer<C>
@@ -142,7 +146,11 @@ impl<C> ComponentContainerExt for ComponentContainer<C>
           C::State: 'static,
           <C::State as ComponentState>::Error: Send + 'static,
 {
-    fn create(&mut self, bar: Rc<BarInfo>, handle: &Handle) -> Result<Box<ComponentStateWrapperExt>> {
+    fn create(
+        &mut self,
+        bar: Rc<BarInfo>,
+        handle: &Handle,
+    ) -> Result<Box<ComponentStateWrapperExt>> {
         let container = mem::replace(self, ComponentContainer::Created);
         match container {
             ComponentContainer::Created => Err("component already created".into()),
