@@ -38,7 +38,7 @@ where
 impl<C> StringComponentStateInfo<C> {
     fn setup_layout(&self, layout: &Layout) {
         layout.set_font_description(Some(&self.bar_info.font));
-        layout.set_text(self.current.as_str(), self.current.len() as i32);
+        layout.set_text(self.current.as_str());
     }
 }
 
