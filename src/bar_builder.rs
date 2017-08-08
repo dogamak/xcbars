@@ -222,10 +222,9 @@ impl<'a> BarBuilder<'a> {
             screen_index: 0,
         });
 
-        let mut components = vec![];
-        let mut left_component_count = 0;
-        let mut center_component_count = 0;
-        let mut right_component_count = 0;
+        let mut left_components = vec![];
+        let mut center_components = vec![];
+        let mut right_components = vec![];
 
         // Store inner padding before consumption
         let inner_padding = self.inner_padding;
@@ -239,18 +238,24 @@ impl<'a> BarBuilder<'a> {
         // source component such as the id, slot and the index of
         // the component in the said slot.
         for (slot, mut config) in items.into_iter() {
-            match slot {
-                Slot::Left => left_component_count += 1,
-                Slot::Center => center_component_count += 1,
-                Slot::Right => right_component_count += 1,
-            }
-
             let context = ComponentContext::new(xcb_ctx.clone(), geometry.height());
-
             let state = config.create(info.clone(), &handle)?;
-            
-            components.push((context, state));
+
+            match slot {
+                Slot::Left => left_components.push((context, state)),
+                Slot::Center => center_components.push((context, state)),
+                Slot::Right => right_components.push((context, state)),
+            }
         }
+
+        let left_component_count = left_components.len();
+        let center_component_count = center_components.len();
+        let right_component_count = right_components.len();
+        
+        let components = vec![left_components, center_components, right_components]
+            .into_iter()
+            .flat_map(|s| s.into_iter())
+            .collect();
 
         Ok(Bar {
             components,
