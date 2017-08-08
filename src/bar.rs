@@ -311,48 +311,60 @@ impl Future for Bar {
     type Error = Error;
 
     fn poll(&mut self) -> Poll<(), Error> {
-        let mut updated = vec![];
         let mut not_ready = false;
-        
-        for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
-            let result = state.poll();
-            match result {
-                Ok(Async::Ready(Some(()))) => updated.push(index),
-                Ok(Async::NotReady) => not_ready = true,
-                Err(e) => return Err(e),
-                _ => continue,
+
+        while !not_ready {
+            let mut updated = vec![];
+
+            for (index, &mut (ref mut context, ref mut state)) in self.components.iter_mut().enumerate() {
+                let result = state.poll();
+                match result {
+                    Ok(Async::Ready(Some(()))) => {
+                        println!("Component {} updated!", index);
+                        updated.push(index)
+                    },
+                    Ok(Async::NotReady) => not_ready = true, 
+                    Err(e) => return Err(e),
+                    _ => {},
+                }
+            }
+
+            for index in updated {
+                let width_changed;
+
+                {
+                    let &mut (ref mut context, ref mut state) =
+                        &mut self.components[index];
+
+                    let width = state.get_preferred_width();
+
+                    width_changed = match context.width() {
+                        Some(prev_width) => width != prev_width,
+                        None => true,
+                    };
+
+                    println!("Updating width of {}", index);
+                    context.update_width(width)?;
+                    state.render(
+                        context.surface().unwrap(),
+                        width,
+                        self.geometry.height())?;
+                }
+
+                let mut slot_offset;
+                if index < self.left_component_count {
+                    slot_offset = 0;
+                } else if index >= self.left_component_count && index < self.left_component_count + self.center_component_count {
+                    slot_offset = self.left_component_count;
+                } else {
+                    slot_offset = self.left_component_count + self.center_component_count;
+                }
+                let slot_index = index - slot_offset;
+
+                self.handle_redraw(index, slot_index, width_changed)?;
             }
         }
 
-        for index in updated {
-            let width_changed;
-            
-            {
-                let &mut (ref mut context, ref mut state) =
-                    &mut self.components[index];
-
-                let width = state.get_preferred_width();
-
-                width_changed = match context.width() {
-                    Some(prev_width) => width != prev_width,
-                    None => true,
-                };
-
-                context.update_width(width)?;
-                state.render(
-                    context.surface().unwrap(),
-                    width,
-                    self.geometry.height())?;
-            }
-
-            self.handle_redraw(index, width_changed)?;
-        }
-
-        if not_ready {
-            Ok(Async::NotReady)
-        } else {
-            let result = self.poll();
-            result
-        }
+        Ok(Async::NotReady)
     }
 }

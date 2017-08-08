@@ -59,18 +59,20 @@ impl<S> Stream for ComponentStateWrapper<S>
     fn poll(&mut self) -> Poll<Option<()>, Error> {
         let update = self.stream.poll();
 
-        match update {
+        let result = match update {
             Ok(Async::Ready(Some(update))) => {
                 match self.state.update(update) {
                     Ok(true) => Ok(Async::Ready(Some(()))),
-                    Ok(false) => Stream::poll(self),
+                    Ok(false) => Ok(Async::NotReady),
                     Err(err) => Err(Error::with_chain(err, "failed to update component")),
                 }
             },
             Err(err) => Err(Error::with_chain(err, "failed to check component updates")),
             Ok(Async::Ready(None)) => Ok(Async::Ready(None)),
             Ok(Async::NotReady) => Ok(Async::NotReady),
-        }
+        };
+        
+        result
     }
 }
 
