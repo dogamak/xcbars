@@ -1,28 +1,22 @@
-use component::Component;
+use string_component::{StringComponentConfig, StringComponentState};
 use tokio_core::reactor::Handle;
 use error::{Error, Result, ErrorKind};
 use xcb::{self, Connection};
 use xcb_event_stream;
 use futures::stream::Stream;
+use std::rc::Rc;
+use bar::BarInfo;
+use xcb_event_stream::XcbEventStream;
+
+pub struct WindowTitleConfig;
 
 /// This struct is used for the window title component.
-pub struct WindowTitle {
+pub struct WindowTitleState {
     active_window: xcb::AtomEnum,
     wm_name: xcb::AtomEnum,
 }
 
-impl Default for WindowTitle {
-    /// Create the default `WindowTitle` component.
-    /// The default by itself does not work, `init` is required.
-    fn default() -> WindowTitle {
-        WindowTitle {
-            active_window: 0,
-            wm_name: 0,
-        }
-    }
-}
-
-impl WindowTitle {
+impl WindowTitleState {
     // Get the title of the window that currently is focused
     fn get_window_title(&self) -> Result<String> {
         // Connect to Xorg
@@ -65,12 +59,18 @@ impl WindowTitle {
     }
 }
 
-// Poll the window title on a timer
-impl Component for WindowTitle {
-    type Error = Error;
-    type Stream = Box<Stream<Item = String, Error = Error>>;
+impl StringComponentConfig for WindowTitleConfig {
+    type State = WindowTitleState;
+}
 
-    fn stream(self, handle: Handle) -> Self::Stream {
+// Poll the window title on a timer
+impl StringComponentState for WindowTitleState {
+    type Error = Error;
+    type Update = xcb::GenericEvent;
+    type Stream = XcbEventStream;
+    type Config = WindowTitleConfig;
+
+    fn create(_: WindowTitleConfig, _: Rc<BarInfo>, handle: &Handle) -> Result<(Self, Self::Stream)> {
         let (conn, screen_num) = Connection::connect(None).unwrap();
 
         // Setup the event for the root screen
@@ -85,32 +85,6 @@ impl Component for WindowTitle {
             );
         }
 
-        // Start event receiver future
-        // Executes `get_window_title` every time window title event is received
-        conn.flush();
-        let active_window = self.active_window;
-        let stream = xcb_event_stream::XcbEventStream::new(conn, &handle)
-            .unwrap()
-            .filter(move |event| unsafe {
-                let property_event: &xcb::PropertyNotifyEvent = xcb::cast_event(event);
-                let property_atom = property_event.atom();
-                property_atom == active_window
-            })
-            .and_then(move |_| {
-                self.get_window_title().or_else(|_| Ok(String::new()))
-            });
-
-        Box::new(stream)
-    }
-
-    // Set fields of `WindowTitle` struct.
-    //
-    // # Errors
-    //
-    // If there is a problem with X or the Atoms are not supported, this will fail.
-    fn init(&mut self) -> Result<()> {
-        let (conn, _) = Connection::connect(None).map_err(ErrorKind::XcbConnection)?;
-
         let active_window = xcb::intern_atom(&conn, true, "_NET_ACTIVE_WINDOW")
             .get_reply()?
             .atom();
@@ -122,10 +96,29 @@ impl Component for WindowTitle {
         if wm_name == 0 || active_window == 0 {
             return Err("The required EWMH properties are not supported.".into());
         }
+        
+        let state = WindowTitleState {
+            active_window: active_window,
+            wm_name: wm_name,
+        };
+        
+        // Start event receiver future
+        // Executes `get_window_title` every time window title event is received
+        conn.flush();
+        let active_window = state.active_window;
+        let stream = xcb_event_stream::XcbEventStream::new(conn, &handle)?;
 
-        self.active_window = active_window;
-        self.wm_name = wm_name;
+        Ok((state, stream))
+    }
 
-        Ok(())
+    fn update(&mut self, event: xcb::GenericEvent) -> Result<Option<String>> {
+        let property_event: &xcb::PropertyNotifyEvent = unsafe {xcb::cast_event(&event) };
+        let property_atom = property_event.atom();
+        
+        if property_atom == self.active_window {
+            Ok(Some(self.get_window_title().unwrap_or(String::new())))
+        } else {
+            Ok(None)
+        }
     }
 }

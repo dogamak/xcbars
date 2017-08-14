@@ -1,47 +1,19 @@
 use std::time::{Duration, Instant};
 use tokio_core::reactor::Handle;
 use error::{Error, Result};
-use component::Component;
-use tokio_timer::Timer;
+use string_component::{StringComponentState, StringComponentConfig};
+use tokio_timer::{Interval, Timer};
 use futures::Stream;
+use bar::BarInfo;
+use std::rc::Rc;
 use time;
 
 /// A `Clock` that automatically determines the refresh rate.
 ///
 /// This uses the default [strftime](http://man7.org/linux/man-pages/man3/strftime.3.html)
 /// syntax for formatting.
-pub struct Clock {
-    format: String,
-    refresh_rate: Duration,
-}
-
-impl Default for Clock {
-    /// Creates a `Clock` without any arguments.
-    ///
-    /// This uses `%T` as the default time format.
-    /// [Read more](https://doc.rust-lang.org/core/default/trait.Default.html#tymethod.default)
-    fn default() -> Clock {
-        Clock {
-            format: "%T".into(),
-            refresh_rate: Duration::from_secs(1),
-        }
-    }
-}
-
-impl Clock {
-    /// Create a new `Clock` specifying the time format as argument.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` if the specified `strftime` format could not be parsed.
-    pub fn new<T: Into<String>>(format: T) -> Result<Clock> {
-        let format = format.into();
-        let refresh_rate = get_refresh_rate(&format)?;
-        Ok(Clock {
-            format: format,
-            refresh_rate,
-        })
-    }
+pub struct Clock<'s> {
+    pub format: &'s str,
 }
 
 // Checks if seconds are part of the `strftime` format.
@@ -65,16 +37,32 @@ fn get_refresh_rate(format: &str) -> Result<Duration> {
     }
 }
 
-impl Component for Clock {
-    type Error = Error;
-    type Stream = Box<Stream<Item = String, Error = Error>>;
+impl<'s> StringComponentConfig for Clock<'s> {
+    type State = Self;
+}
 
-    fn stream(self, _: Handle) -> Self::Stream {
+impl<'s> StringComponentState for Clock<'s> {
+    type Config = Self;
+    type Error = Error;
+    type Update = ();
+    type Stream = Box<Stream<Item=(), Error=Error>>;
+
+    fn create(config: Self, _: Rc<BarInfo>, _: &Handle) -> Result<(Self, Self::Stream)> {
         let timer = Timer::default();
 
-        let format = self.format.clone();
-        timer.interval_at(Instant::now(), self.refresh_rate).and_then(move |()| {
-            Ok(time::strftime(&format, &time::now()).unwrap())
-        }).map_err(|_| "timer error".into()).boxed()
+        let refresh_rate = get_refresh_rate(config.format)?;
+        let stream = timer.interval_at(Instant::now(), refresh_rate)
+            .map_err(|_| "timer error".into());
+
+        // Check that the format can be parsed
+        if let Err(_) = time::strftime(&config.format, &time::now()) {
+            return Err("time format parsing error".into());
+        }
+
+        Ok((config, Box::new(stream)))
+    }
+
+    fn update(&mut self, _: ()) -> Result<Option<String>> {
+        Ok(Some(time::strftime(&self.format, &time::now()).unwrap()))
     }
 }

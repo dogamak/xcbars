@@ -2,7 +2,7 @@ use futures::{Future, Stream};
 use std::sync::Arc;
 use tokio_timer::Timer;
 use tokio_core::reactor::Handle;
-use string_component::StringComponent;
+use string_component::{StringComponentConfig, StringComponentState};
 use bar::BarInfo;
 use std::rc::Rc;
 use error::{Error, Result};

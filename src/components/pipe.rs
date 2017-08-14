@@ -1,4 +1,4 @@
-use string_component::StringComponent;
+use string_component::{StringComponentConfig, StringComponentState};
 use bar::BarInfo;
 use std::rc::Rc;
 use tokio_core::reactor::Handle;
@@ -119,11 +119,23 @@ impl Stream for PipeStream {
     }
 }
 
-impl StringComponent for Pipe {
-    type Error = Error;
-    type Stream = PipeStream;
+impl StringComponentConfig for Pipe {
+    type State = PipeComponentState;
+}
 
-    fn create(config: Self, _: Rc<BarInfo>, handle: &Handle) -> Result<Self::Stream> {
-        Ok(PipeStream::new(config, handle.clone()))
+pub struct PipeComponentState;
+
+impl StringComponentState for PipeComponentState {
+    type Error = Error;
+    type Update = String;
+    type Stream = PipeStream;
+    type Config = Pipe;
+
+    fn create(config: Pipe, _: Rc<BarInfo>, handle: &Handle) -> Result<(Self, Self::Stream)> {
+        Ok((PipeComponentState, PipeStream::new(config, handle.clone())))
+    }
+
+    fn update(&mut self, update: String) -> Result<Option<String>> {
+        Ok(Some(update))
     }
 }
