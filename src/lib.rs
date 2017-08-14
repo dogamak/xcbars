@@ -31,4 +31,4 @@ pub use bar_properties::BarProperties;
 pub use component::Slot;
 pub use bar::{Bar, BarInfo};
 pub use error::Error;
-pub use string_component::StringComponent;
+pub use string_component::{StringComponentConfig, StringComponentState};

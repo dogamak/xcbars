@@ -11,60 +11,68 @@ use std::error::Error as StdError;
 use std::marker::PhantomData;
 use pangocairo::FontMap;
 
-pub trait StringComponent: Sized {
-    type Stream: Stream<Item = String, Error = Self::Error>;
-    type Error: StdError;
-
-    fn create(
-        config: Self,
-        bar_info: Rc<BarInfo>,
-        handle: &Handle,
-    ) -> Result<Self::Stream, Self::Error>;
+pub trait StringComponentConfig: Sized {
+    type State: StringComponentState<Config = Self>;
 }
 
-pub struct StringComponentStateInfo<C> {
-    component: PhantomData<C>,
+pub trait StringComponentState: Sized {
+    type Config: StringComponentConfig;
+    type Update;
+    type Error: StdError;
+    type Stream: Stream<Item = Self::Update, Error = Self::Error>;
+
+    fn create(
+        config: Self::Config,
+        bar_info: Rc<BarInfo>,
+        handle: &Handle,
+    ) -> Result<(Self, Self::Stream), Self::Error>;
+
+    fn update(&mut self, update: <Self::Stream as Stream>::Item) -> Result<Option<String>, Self::Error>;
+}
+
+pub struct StringComponentStateInfo<S> {
+    state: S,
     current: String,
     bar_info: Rc<BarInfo>,
 }
 
 impl<C> ComponentConfig for C
 where
-    C: StringComponent,
+    C: StringComponentConfig,
 {
-    type State = StringComponentStateInfo<C>;
+    type State = StringComponentStateInfo<C::State>;
 }
 
-impl<C> StringComponentStateInfo<C> {
+impl<S> StringComponentStateInfo<S> {
     fn setup_layout(&self, layout: &Layout) {
         layout.set_font_description(Some(&self.bar_info.font));
         layout.set_text(self.current.as_str());
     }
 }
 
-impl<C> ComponentState for StringComponentStateInfo<C>
+impl<S> ComponentState for StringComponentStateInfo<S>
 where
-    C: StringComponent,
+    S: StringComponentState,
 {
-    type Config = C;
-    type Error = C::Error;
-    type Update = String;
-    type Stream = C::Stream;
+    type Config = S::Config;
+    type Error = S::Error;
+    type Update = S::Update;
+    type Stream = S::Stream;
 
     fn create(
-        config: C,
+        config: S::Config,
         bar_info: Rc<BarInfo>,
         handle: &Handle,
     ) -> Result<(Self, Self::Stream), Self::Error> {
-        let result = C::create(config, bar_info.clone(), handle);
+        let result = S::create(config, bar_info.clone(), handle);
 
-        let stream = match result {
+        let (state, stream) = match result {
             Ok(x) => x,
             Err(e) => return Err(e),
         };
 
         let state_info = StringComponentStateInfo {
-            component: PhantomData,
+            state: state,
             current: String::new(),
             bar_info: bar_info,
         };
@@ -72,12 +80,13 @@ where
         Ok((state_info, stream))
     }
 
-    fn update(&mut self, update: String) -> Result<bool, Self::Error> {
-        if self.current != update {
-            self.current = update;
-            Ok(true)
-        } else {
-            Ok(false)
+    fn update(&mut self, update: S::Update) -> Result<bool, Self::Error> {
+        match self.state.update(update)? {
+            Some(new) => {
+                self.current = new;
+                Ok(true)
+            },
+            None => Ok(false),
         }
     }
 
