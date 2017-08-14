@@ -21,7 +21,7 @@ mod error;
 mod bar;
 mod bar_builder;
 mod bar_properties;
-// mod xcb_event_stream;
+mod xcb_event_stream;
 pub mod component;
 mod component_context;
 mod string_component;
